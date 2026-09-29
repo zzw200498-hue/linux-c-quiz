@@ -1,0 +1,273 @@
+{
+  "name": "linux-c-quiz",
+  "displayName": "Linux C Quiz 刷题工作台",
+  "description": "把 LLM 出的题目录入并在 VSCode 里作答的 Linux/嵌入式 C 刷题工作台：选择、填空、简答、代码改写、编程题，支持作答持久化与错题导出批改闭环。",
+  "version": "0.2.6",
+  "publisher": "local-dev",
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "keywords": [
+    "linux",
+    "c",
+    "quiz",
+    "embedded"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "linux-c-quiz",
+          "title": "刷题",
+          "icon": "media/quiz.svg"
+        }
+      ]
+    },
+    "views": {
+      "linux-c-quiz": [
+        {
+          "id": "linux-c-quiz.papers",
+          "name": "题库"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "linux-c-quiz.openQuestion",
+        "title": "打开题目",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.openPaper",
+        "title": "打开试卷",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.importPaper",
+        "title": "导入试卷（YAML / Markdown）",
+        "icon": "$(add)",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.deletePaper",
+        "title": "删除试卷",
+        "icon": "$(trash)",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.refresh",
+        "title": "刷新题库",
+        "icon": "$(refresh)",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.copyGeneratePrompt",
+        "title": "复制出题提示词（粘给 DeepSeek）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.copyReviewPrompt",
+        "title": "复制批改提示词",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.exportAnswers",
+        "title": "导出本卷作答（生成批改请求并复制）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.importGrades",
+        "title": "导入批改结果（从剪贴板）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.reviewKnowledge",
+        "title": "生成知识点速览（Markdown 预览）",
+        "icon": "$(preview)",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.openScratch",
+        "title": "打开编程题代码目录",
+        "icon": "$(code)",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.checkRunner",
+        "title": "检查编译环境（Runner 自检）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.syncSysroot",
+        "title": "同步 VM 系统头文件（本地补全用）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.verifyBank",
+        "title": "校验编程题用例（用参考答案自测）",
+        "icon": "$(beaker)",
+        "category": "Quiz"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "linux-c-quiz.openScratch",
+          "when": "view == linux-c-quiz.papers && viewItem == question-coding",
+          "group": "inline@1"
+        },
+        {
+          "command": "linux-c-quiz.reviewKnowledge",
+          "when": "view == linux-c-quiz.papers && viewItem == paper",
+          "group": "inline@1"
+        },
+        {
+          "command": "linux-c-quiz.verifyBank",
+          "when": "view == linux-c-quiz.papers && viewItem == paper",
+          "group": "inline@2"
+        },
+        {
+          "command": "linux-c-quiz.deletePaper",
+          "when": "view == linux-c-quiz.papers && viewItem == paper",
+          "group": "inline@3"
+        },
+        {
+          "command": "linux-c-quiz.reviewKnowledge",
+          "when": "view == linux-c-quiz.papers && viewItem == paper",
+          "group": "9_modification@1"
+        },
+        {
+          "command": "linux-c-quiz.deletePaper",
+          "when": "view == linux-c-quiz.papers && viewItem == paper",
+          "group": "9_modification@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "linux-c-quiz.openQuestion",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "linux-c-quiz.importPaper",
+          "group": "navigation@1",
+          "when": "view == linux-c-quiz.papers"
+        },
+        {
+          "command": "linux-c-quiz.refresh",
+          "group": "navigation@2",
+          "when": "view == linux-c-quiz.papers"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Linux C Quiz",
+      "properties": {
+        "quiz.bankPath": {
+          "type": "string",
+          "default": "bank",
+          "description": "题库目录（相对当前工作区根目录）"
+        },
+        "quiz.runner": {
+          "type": "string",
+          "enum": [
+            "local",
+            "ssh",
+            "off"
+          ],
+          "enumDescriptions": [
+            "本机直接执行（Remote-SSH 到 Ubuntu 时用这个，推荐）",
+            "VSCode 在 Windows 本地时，把 scratch 目录 scp 同步到 VM 里编译运行（需配 quiz.sshHost）",
+            "只做题不编译运行"
+          ],
+          "default": "local",
+          "markdownDescription": "编程题编译运行方式。**推荐**：用 Remote-SSH 连上 Ubuntu VM 后保持 `local`（扩展跑在远端，直接调 gcc/make）；在 Windows 本地做题时改成 `ssh`。"
+        },
+        "quiz.sshHost": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "ssh 模式的目标主机，如 `daniya@192.168.88.128`（建议先配置 ssh 免密登录）"
+        },
+        "quiz.sshPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "ssh 可执行文件路径（留空自动选择）。Windows 上会自动优先用 `C:\\Windows\\System32\\OpenSSH\\ssh.exe`，因为 PATH 里靠前的 Git-Bash ssh 在中文用户名目录下读不到 `~/.ssh` 私钥。"
+        },
+        "quiz.remoteRoot": {
+          "type": "string",
+          "default": "~/.quiz-runner",
+          "description": "ssh 模式下 scratch 目录同步到远端的根目录"
+        },
+        "quiz.cCompiler": {
+          "type": "string",
+          "default": "gcc",
+          "description": "C 编译器命令（远端/本机 PATH 中可找到；交叉编译时可改为 arm-linux-gnueabihf-gcc）"
+        },
+        "quiz.cppCompiler": {
+          "type": "string",
+          "default": "g++",
+          "description": "C++ 编译器命令"
+        },
+        "quiz.runTimeoutSec": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "单个用例运行超时（秒），超时强制终止"
+        },
+        "quiz.knowledgeTooltip": {
+          "type": "string",
+          "enum": [
+            "answered",
+            "judged",
+            "always",
+            "off"
+          ],
+          "enumDescriptions": [
+            "只要作答过就显示知识点（默认；主观题保存后即可对照参考答案）",
+            "仅已判定 / 已批改的题显示（最严格，交卷前无剧透）",
+            "所有题目都显示知识点",
+            "不显示知识点，悬停只显示题干"
+          ],
+          "default": "answered",
+          "markdownDescription": "题库侧栏中鼠标悬停在题目上时显示的内容。开启后悬停提示会由「题干」替换为**知识点**：正确答案 / 答案、解析、参考答案、评分要点、我的作答、批改结果。默认只对**已作答**的题生效，未作答的题仍只显示题干，因此不会在做卷过程中剧透。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && npx @vscode/vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "highlight.js": "^11.10.0",
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@esbuild/win32-x64": "^0.28.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.1.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.2"
+  }
+}

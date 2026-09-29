@@ -1,0 +1,506 @@
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.loading {
+  padding: 40px;
+  opacity: 0.7;
+}
+
+.quiz {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 14px 20px 60px;
+}
+
+/* ---------- 头部 ---------- */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border, #333);
+}
+.head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.head-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ---------- 交卷结果 ---------- */
+.summary {
+  margin-top: 10px;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: rgba(80, 140, 255, 0.08);
+  line-height: 1.6;
+}
+
+/* ---------- 填空行内输入 ---------- */
+.fill-stem {
+  line-height: 2.6;
+}
+.blank-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 3px;
+  vertical-align: middle;
+}
+.blank-input {
+  width: 9em;
+  padding: 2px 8px;
+  font-size: 12.5px;
+  border-radius: 4px;
+}
+.blank-mark {
+  font-size: 11.5px;
+}
+.blank-mark.ok {
+  color: #3fb950;
+}
+.blank-mark.bad {
+  color: #f85149;
+}
+.paper-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.progress {
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+/* ---------- 标签 ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 6px;
+}
+.chip {
+  border: 1px solid var(--vscode-input-border, #444);
+  border-radius: 10px;
+  padding: 1px 9px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.chip.type {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+  opacity: 1;
+}
+
+/* ---------- 题干 ---------- */
+.stem {
+  line-height: 1.65;
+  margin: 10px 0 14px;
+  white-space: pre-wrap;
+}
+.stem pre.hljs {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow: auto;
+  white-space: pre;
+}
+.stem code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12.5px;
+}
+
+/* ---------- 选择题 ---------- */
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.opt {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  text-align: left;
+  padding: 9px 12px;
+  border: 1px solid var(--vscode-input-border, #444);
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.opt .letter {
+  font-weight: 700;
+  opacity: 0.7;
+}
+.opt.picked {
+  border-color: var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+}
+.opt.correct {
+  border-color: #3fb950;
+  background: rgba(63, 185, 80, 0.12);
+}
+.opt.wrong {
+  border-color: #f85149;
+  background: rgba(248, 81, 73, 0.12);
+}
+.opt code {
+  font-family: var(--vscode-font-family);
+  white-space: pre-wrap;
+}
+
+/* ---------- 填空 ---------- */
+.fills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fill-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fill-row label {
+  min-width: 44px;
+  opacity: 0.8;
+}
+.fill-row input {
+  flex: 1;
+  min-width: 220px;
+}
+.fill-answer {
+  font-size: 12px;
+  opacity: 0.75;
+}
+input[type='text'] {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #444);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+/* ---------- 主观题 ---------- */
+.subjective {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.codeblock {
+  background: var(--vscode-textCodeBlock-background);
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre;
+}
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #444);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.subj-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hint {
+  font-size: 11.5px;
+  opacity: 0.6;
+}
+.saved-hint {
+  font-size: 11.5px;
+}
+.saved-hint.ok {
+  color: #3fb950;
+}
+.saved-hint.dirty {
+  color: #d29922;
+}
+.tests ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.reference {
+  border: 1px dashed var(--vscode-input-border, #555);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reference b {
+  opacity: 0.75;
+}
+.ref-text {
+  white-space: pre-wrap;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ---------- 结果 ---------- */
+.explain {
+  margin-top: 14px;
+  border-radius: 6px;
+  padding: 10px 14px;
+  line-height: 1.6;
+}
+.explain.ok {
+  border: 1px solid rgba(63, 185, 80, 0.5);
+  background: rgba(63, 185, 80, 0.08);
+}
+.explain.bad {
+  border: 1px solid rgba(248, 81, 73, 0.5);
+  background: rgba(248, 81, 73, 0.08);
+}
+.grade {
+  margin-top: 12px;
+  border-radius: 6px;
+  padding: 10px 14px;
+  line-height: 1.6;
+}
+.grade.correct {
+  border: 1px solid rgba(63, 185, 80, 0.5);
+}
+.grade.partial {
+  border: 1px solid rgba(210, 153, 34, 0.6);
+}
+.grade.wrong {
+  border: 1px solid rgba(248, 81, 73, 0.5);
+}
+.grade-answer {
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-textCodeBlock-background);
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 6px;
+}
+
+/* ---------- 按钮 & 导航 ---------- */
+.btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-input-border, #444);
+  background: var(--vscode-button-secondaryBackground, #2a2d2e);
+  color: var(--vscode-button-secondaryForeground, #ccc);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.btn.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: transparent;
+}
+.btn.ghost {
+  background: transparent;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: var(--vscode-editor-background);
+  border-top: 1px solid var(--vscode-editorWidget-border, #333);
+}
+.counter {
+  opacity: 0.7;
+}
+
+/* ---------------- 编程题 Runner ---------------- */
+
+.code-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.5;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #444);
+  border-radius: 4px;
+  padding: 8px 10px;
+  resize: vertical;
+  tab-size: 4;
+}
+.code-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+details.template {
+  margin-bottom: 10px;
+  border: 1px solid var(--vscode-editorWidget-border, #333);
+  border-radius: 6px;
+}
+details.template summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  opacity: 0.85;
+  user-select: none;
+}
+details.template .codeblock {
+  margin: 0 10px 10px;
+}
+
+.runpanel {
+  margin-top: 12px;
+  border: 1px solid var(--vscode-editorWidget-border, #333);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.run-summary {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  opacity: 0.9;
+}
+.run-summary code {
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+}
+.run-cmd {
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 6px 0 4px;
+  word-break: break-all;
+}
+.run-error {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--vscode-inputValidation-errorBackground, rgba(180, 40, 40, 0.18));
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #b44040);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre.out {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: var(--vscode-terminal-background, rgba(128, 128, 128, 0.12));
+  font-family: var(--vscode-editor-font-family, Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow: auto;
+}
+pre.out.err {
+  color: var(--vscode-errorForeground, #f66);
+}
+.test {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid var(--vscode-editorError-foreground, #f14c4c);
+  background: var(--vscode-editor-background);
+}
+.test.pass {
+  border-left-color: var(--vscode-testing-iconPassed, #73c991);
+}
+.test-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.badge {
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.badge.ok {
+  background: var(--vscode-testing-iconPassed, #73c991);
+  color: #1a1a1a;
+}
+.badge.bad {
+  background: var(--vscode-testing-iconFailed, #f14c4c);
+  color: #fff;
+}
+.test-meta {
+  font-size: 11.5px;
+  opacity: 0.65;
+}
+.expected {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.expected b {
+  display: block;
+  margin-bottom: 2px;
+}
+.run-note {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.run-compile.ok {
+  color: var(--vscode-testing-iconPassed, #73c991);
+  font-size: 12.5px;
+}
+
+.run-verdict {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+.run-verdict.ok {
+  background: rgba(115, 201, 145, 0.14);
+  border: 1px solid var(--vscode-testing-iconPassed, #73c991);
+}
+.run-verdict.bad {
+  background: rgba(241, 76, 76, 0.1);
+  border: 1px solid var(--vscode-testing-iconFailed, #f14c4c);
+}

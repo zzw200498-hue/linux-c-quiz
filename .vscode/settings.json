@@ -1,0 +1,9 @@
+{
+  "quiz.runner": "ssh",
+  "quiz.sshHost": "daniya@192.168.88.128",
+  "quiz.remoteRoot": "~/.quiz-runner",
+  "quiz.cCompiler": "gcc",
+  "quiz.cppCompiler": "g++",
+  "quiz.runTimeoutSec": 5,
+  "quiz.bankPath": "bank/bank"
+}
