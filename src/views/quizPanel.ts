@@ -60,8 +60,16 @@ export class QuizPanel {
         questions: this.paper.questions,
         startQid,
         answers: st.papers[this.paper.file] ?? {},
+        summary: st.summaries[this.paper.file] ?? null,
       },
     });
+  }
+
+  /** 把当前卷最新成绩单推送给 Webview（只读广播；重算由 mergeGrades / syncSummary 负责） */
+  static async postSummary(store: Store): Promise<void> {
+    if (!this.panel || !this.paper) return;
+    const summary = await store.getSummary(this.paper.file);
+    if (summary) this.post({ type: 'summaryUpdated', data: summary });
   }
 
   private static bind(
@@ -109,6 +117,13 @@ export class QuizPanel {
           break;
         case 'runTests':
           await this.runTests(store, provider, msg.qid, msg.code);
+          break;
+        case 'syncSummary':
+          if (this.paper) {
+            await store.refreshSummary(this.paper.file);
+            await this.postSummary(store);
+            await provider.refresh();
+          }
           break;
       }
     });

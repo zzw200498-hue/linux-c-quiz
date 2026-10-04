@@ -322,6 +322,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const file = QuizPanel.currentPaperFile ?? (await pickPaper(store));
       if (!file) return;
       await importGradesFromClipboard(context, store, provider, file);
+      await QuizPanel.postSummary(store);
     }),
 
     vscode.commands.registerCommand('linux-c-quiz.importGradesFile', async () => {
@@ -329,6 +330,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const file = QuizPanel.currentPaperFile ?? (await pickPaper(store));
       if (!file) return;
       await importGradesFromImportDir(store, provider, file);
+      await QuizPanel.postSummary(store);
     }),
 
     vscode.commands.registerCommand('linux-c-quiz.reviewKnowledge', async (arg?: unknown) => {

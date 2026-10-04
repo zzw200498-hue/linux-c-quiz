@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { Answer, PaperFile, Question } from '../shared/types';
+import type { Answer, PaperFile, PaperSummary, Question } from '../shared/types';
 import { TYPE_LABEL } from '../shared/types';
 import {
   hasKnowledge,
@@ -35,12 +35,14 @@ export class PapersProvider implements vscode.TreeDataProvider<TreeNode> {
   private emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
   private state: Record<string, Record<string, Answer>> = {};
+  private summaries: Record<string, PaperSummary> = {};
 
   constructor(private store: Store) {}
 
   async refresh(): Promise<void> {
     const st = await this.store.loadState();
     this.state = st.papers;
+    this.summaries = st.summaries;
     this.emitter.fire();
   }
 
@@ -52,11 +54,15 @@ export class PapersProvider implements vscode.TreeDataProvider<TreeNode> {
       const ratio = total > 0 ? answered / total : 0;
       // 默认收起，保持侧栏紧凑；完成度一眼可见
       const item = new vscode.TreeItem(el.paper.paper.title, vscode.TreeItemCollapsibleState.Collapsed);
+      const rep = this.summaries[el.paper.file];
       item.tooltip = new vscode.MarkdownString(
         [
           `**${el.paper.paper.title}**`,
           '',
           `进度：${answered}/${total} 已答（${Math.round(ratio * 100)}%）`,
+          rep && rep.judgedCount > 0
+            ? `成绩：**${rep.totalScore} 分**（全对 ${rep.verdictCounts.correct} · 部分 ${rep.verdictCounts.partial} · 错 ${rep.verdictCounts.wrong}）`
+            : '',
           el.paper.paper.topics?.length ? `主题：${el.paper.paper.topics.join(' / ')}` : '',
         ]
           .filter(Boolean)

@@ -7,8 +7,10 @@ import {
   paperSchema,
   stateSchema,
   type PaperFile,
+  type PaperSummary,
   type QuizState,
 } from '../shared/types';
+import { computeSummary } from '../shared/summary';
 
 export class Store {
   constructor(private ctx: vscode.ExtensionContext) {}
@@ -103,8 +105,9 @@ export class Store {
     const dst = path.join(trashDir, `${Date.now()}-${file}`);
     fs.renameSync(src, dst);
     const st = await this.loadState();
-    if (st.papers[file]) {
+    if (st.papers[file] || st.summaries[file]) {
       delete st.papers[file];
+      delete st.summaries[file];
       await this.saveState(st);
     }
     return dst;
@@ -151,10 +154,11 @@ export class Store {
     await this.saveState(st);
   }
 
-  /** 合并批改结果，返回命中的题目数 */
+  /** 合并批改结果，返回命中的题目数；overall 为批改者给的整卷总评 */
   async mergeGrades(
     paperFile: string,
     grades: Record<string, { verdict: 'correct' | 'partial' | 'wrong' } & Record<string, unknown>>,
+    overall?: string,
   ): Promise<number> {
     const paper = await this.loadPaper(paperFile);
     if (!paper) return 0;
@@ -174,7 +178,37 @@ export class Store {
         grade: g,
       });
     }
+    if (hit > 0) await this.refreshSummaryInState(paper, st, paperFile, overall);
     await this.saveState(st);
     return hit;
+  }
+
+  /** 重新计算并保存某卷成绩单（供交卷/清除判定/导入批改后调用），返回新成绩单 */
+  async refreshSummary(paperFile: string, overall?: string): Promise<PaperSummary | null> {
+    const paper = await this.loadPaper(paperFile);
+    if (!paper) return null;
+    const st = await this.loadState();
+    const summary = await this.refreshSummaryInState(paper, st, paperFile, overall);
+    await this.saveState(st);
+    return summary;
+  }
+
+  /** 在已有 state 对象上重算成绩单（不落盘）；overall 传 undefined 时保留已存储的批改总评 */
+  private refreshSummaryInState(
+    paper: PaperFile,
+    st: QuizState,
+    paperFile: string,
+    overall?: string,
+  ): PaperSummary {
+    const finalOverall = overall !== undefined ? overall : (st.summaries[paperFile]?.overall ?? '');
+    const summary = computeSummary(paper.questions, st.papers[paperFile] ?? {}, finalOverall);
+    st.summaries[paperFile] = summary;
+    return summary;
+  }
+
+  /** 读取某卷成绩单（没有则返回 null） */
+  async getSummary(paperFile: string): Promise<PaperSummary | null> {
+    const st = await this.loadState();
+    return st.summaries[paperFile] ?? null;
   }
 }

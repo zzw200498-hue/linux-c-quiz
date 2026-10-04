@@ -22,6 +22,8 @@ export async function readPrompt(ctx: vscode.ExtensionContext, store: Store, nam
 
 const gradeListSchema = z.object({
   grades: z.record(z.string(), gradeSchema),
+  /** 批改者给的整卷总评（可选） */
+  overall: z.string().optional(),
 });
 
 function fmtValue(v: string | string[] | null): string {
@@ -113,7 +115,7 @@ async function applyGradesText(
       .join('\n');
     throw new Error(`批改结果格式不对（需要 { grades: { qid: {verdict,score,...} } }）：\n${issues}`);
   }
-  const hit = await store.mergeGrades(file, parsed.data.grades);
+  const hit = await store.mergeGrades(file, parsed.data.grades, parsed.data.overall);
   await provider.refresh();
   return hit;
 }

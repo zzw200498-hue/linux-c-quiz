@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Answer, HostToWeb, InitData, Question, WebToHost } from '../shared/types';
+import type { Answer, HostToWeb, InitData, PaperSummary, Question, WebToHost } from '../shared/types';
 import { TYPE_LABEL } from '../shared/types';
+import { autoOverallText } from '../shared/summary';
 import { judge, isObjective } from '../shared/judge';
 import { md } from './md';
 import { post } from './vscode';
@@ -14,6 +15,7 @@ export function App() {
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [idx, setIdx] = useState(0);
   const [summary, setSummary] = useState<{ right: number; total: number } | null>(null);
+  const [report, setReport] = useState<PaperSummary | null>(null);
 
   useEffect(() => {
     const handler = (e: MessageEvent<HostToWeb>) => {
@@ -22,8 +24,11 @@ export function App() {
         setData(m.data);
         setAnswers(m.data.answers ?? {});
         setSummary(null);
+        setReport(m.data.summary);
         const i = m.data.questions.findIndex((q) => q.id === m.data.startQid);
         setIdx(i >= 0 ? i : 0);
+      } else if (m.type === 'summaryUpdated') {
+        setReport(m.data);
       }
     };
     window.addEventListener('message', handler);
@@ -51,6 +56,7 @@ export function App() {
       save(q.id, v, c);
     }
     setSummary(total > 0 ? { right, total } : null);
+    post({ type: 'syncSummary' } satisfies WebToHost);
   }, [data, answers, save]);
 
   /** 清除客观题判定（保留作答，可重新刷） */
@@ -62,6 +68,7 @@ export function App() {
       if (a?.correct != null) save(q.id, a.value ?? null, null);
     }
     setSummary(null);
+    post({ type: 'syncSummary' } satisfies WebToHost);
   }, [data, answers, save]);
 
   const copyAll = useCallback(() => {
@@ -123,7 +130,38 @@ export function App() {
         <div className="summary">
           客观题判定完成：答对 <b>{summary.right}</b> / {summary.total}
           {summary.total > 0 && summary.right === summary.total ? ' 🎉 全对！' : ''}
-          。主观题请用「导出本卷作答」交给 DeepSeek 批改。
+          。主观题请用「导出本卷作答」：粘贴给 DeepSeek，或切到 WorkBuddy 对话说「批改」。
+        </div>
+      )}
+
+      {report && report.judgedCount > 0 && (
+        <div className="reportcard">
+          <div className="reportcard-main">
+            <div className="reportcard-score">
+              {report.totalScore}
+              <small>分</small>
+            </div>
+            <div className="reportcard-stats">
+              <span>
+                已判定 <b>{report.judgedCount}</b>/{report.questionCount} 题
+              </span>
+              <span className="ok">全对 {report.verdictCounts.correct}</span>
+              <span className="mid">部分 {report.verdictCounts.partial}</span>
+              <span className="bad">错 {report.verdictCounts.wrong}</span>
+              {report.pendingCount > 0 && <span className="dim">待判定 {report.pendingCount}</span>}
+            </div>
+          </div>
+          {report.weakTags.length > 0 && (
+            <div className="reportcard-tags">
+              薄弱方向：
+              {report.weakTags.map((t) => (
+                <span key={t} className="chip tag">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="reportcard-overall">{report.overall || autoOverallText(report)}</div>
         </div>
       )}
 

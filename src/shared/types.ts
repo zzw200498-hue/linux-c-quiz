@@ -97,13 +97,38 @@ export const answerSchema = z.object({
     .optional(),
 });
 
+/** 整卷成绩单：交卷/导入批改后自动计算，保留最近一次结果（为错题本/学习报告铺路） */
+export const paperSummarySchema = z.object({
+  /** 整卷百分制得分 = 已判定题目的平均分（客观题判分计 0/100，主观题取 grade.score） */
+  totalScore: z.number().default(0),
+  /** 已判定题数 / 总题数 / 待判定题数 */
+  judgedCount: z.number().default(0),
+  questionCount: z.number().default(0),
+  pendingCount: z.number().default(0),
+  verdictCounts: z
+    .object({
+      correct: z.number().default(0),
+      partial: z.number().default(0),
+      wrong: z.number().default(0),
+    })
+    .default({ correct: 0, partial: 0, wrong: 0 }),
+  /** 整卷总评：批改者给的整体评价；无则由扩展按统计自动生成 */
+  overall: z.string().default(''),
+  /** 薄弱知识点标签（按错误/部分正确题目的 tags 频次取前 3） */
+  weakTags: z.array(z.string()).default([]),
+  ts: z.number().default(0),
+});
+
 export const stateSchema = z.object({
   /** papers[试卷文件名][题目id] = 作答 */
   papers: z.record(z.string(), z.record(z.string(), answerSchema)).default({}),
+  /** summaries[试卷文件名] = 整卷成绩单 */
+  summaries: z.record(z.string(), paperSummarySchema).default({}),
 });
 
 export type Grade = z.infer<typeof gradeSchema>;
 export type Answer = z.infer<typeof answerSchema>;
+export type PaperSummary = z.infer<typeof paperSummarySchema>;
 export type QuizState = z.infer<typeof stateSchema>;
 
 /* ---------------- Runner：编译运行 ---------------- */
@@ -161,20 +186,23 @@ export type InitData = {
   questions: Question[];
   startQid: string | null;
   answers: Record<string, Answer>;
+  summary: PaperSummary | null;
 };
 
 export type HostToWeb =
   | { type: 'init'; data: InitData }
   | { type: 'answersReplaced'; answers: Record<string, Answer> }
   | { type: 'runResults'; qid: string; data: RunSummary }
-  | { type: 'scratchSaved'; qid: string; code: string };
+  | { type: 'scratchSaved'; qid: string; code: string }
+  | { type: 'summaryUpdated'; data: PaperSummary };
 
 export type WebToHost =
   | { type: 'ready' }
   | { type: 'saveAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
   | { type: 'copyText'; text: string }
   | { type: 'openScratch'; qid: string; code: string }
-  | { type: 'runTests'; qid: string; code: string };
+  | { type: 'runTests'; qid: string; code: string }
+  | { type: 'syncSummary' };
 
 /* ---------------- 试卷文件（侧栏用） ---------------- */
 

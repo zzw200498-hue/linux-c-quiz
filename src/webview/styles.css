@@ -52,6 +52,58 @@ body {
   line-height: 1.6;
 }
 
+/* ---------- 整卷成绩单 ---------- */
+.reportcard {
+  margin-top: 10px;
+  border: 1px solid var(--vscode-editorWidget-border, #444);
+  border-left: 3px solid var(--vscode-charts-green, #3fb950);
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.08));
+  line-height: 1.7;
+}
+.reportcard-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.reportcard-score {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--vscode-charts-green, #3fb950);
+  line-height: 1;
+}
+.reportcard-score small {
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 2px;
+  opacity: 0.75;
+}
+.reportcard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.reportcard-stats .ok { color: var(--vscode-charts-green, #3fb950); }
+.reportcard-stats .mid { color: var(--vscode-charts-yellow, #d29922); }
+.reportcard-stats .bad { color: var(--vscode-charts-red, #f85149); }
+.reportcard-stats .dim { opacity: 0.65; }
+.reportcard-tags {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+.reportcard-overall {
+  margin-top: 6px;
+  font-size: 12.5px;
+  opacity: 0.92;
+  white-space: pre-wrap;
+}
+
 /* ---------- 填空行内输入 ---------- */
 .fill-stem {
   line-height: 2.6;
