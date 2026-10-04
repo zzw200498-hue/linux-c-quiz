@@ -47,20 +47,28 @@ export class PapersProvider implements vscode.TreeDataProvider<TreeNode> {
   getTreeItem(el: TreeNode): vscode.TreeItem {
     if (el instanceof PaperNode) {
       const answers = this.state[el.paper.file] ?? {};
+      const total = el.paper.questions.length;
       const answered = el.paper.questions.filter((q) => answers[q.id]?.value != null).length;
-      const item = new vscode.TreeItem(el.paper.paper.title, vscode.TreeItemCollapsibleState.Expanded);
-      item.description = `${answered}/${el.paper.questions.length} 已答`;
+      const ratio = total > 0 ? answered / total : 0;
+      // 默认收起，保持侧栏紧凑；完成度一眼可见
+      const item = new vscode.TreeItem(el.paper.paper.title, vscode.TreeItemCollapsibleState.Collapsed);
       item.tooltip = new vscode.MarkdownString(
         [
           `**${el.paper.paper.title}**`,
           '',
-          `进度：${answered}/${el.paper.questions.length} 已答`,
+          `进度：${answered}/${total} 已答（${Math.round(ratio * 100)}%）`,
           el.paper.paper.topics?.length ? `主题：${el.paper.paper.topics.join(' / ')}` : '',
         ]
           .filter(Boolean)
           .join('\n'),
       );
-      item.iconPath = new vscode.ThemeIcon('book');
+      // 左侧完成度标记：≥80% 绿，60~79% 黄，1~59% 红，没做不标记（保留书本图标）
+      if (answered > 0) {
+        const color = ratio >= 0.8 ? 'charts.green' : ratio >= 0.6 ? 'charts.yellow' : 'charts.red';
+        item.iconPath = new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor(color));
+      } else {
+        item.iconPath = new vscode.ThemeIcon('book');
+      }
       item.contextValue = 'paper';
       item.command = {
         command: 'linux-c-quiz.openPaper',
