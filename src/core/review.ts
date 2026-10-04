@@ -86,11 +86,37 @@ export async function exportAnswers(
   const doc = await vscode.workspace.openTextDocument(outPath);
   await vscode.window.showTextDocument(doc, { preview: true });
   void vscode.window.showInformationMessage(
-    '批改请求已生成并复制到剪贴板：粘贴给 DeepSeek，收到回复后运行「导入批改结果（从剪贴板）」。',
+    '批改请求已生成并复制到剪贴板：可粘贴给 DeepSeek 网页；或切到 WorkBuddy 对话里说「批改」，结果会写入 .quiz/import/，之后用「导入批改结果（从文件）」一键导入。',
   );
 }
 
 /* ---------- 导入批改结果 ---------- */
+
+/** 解析一段文本中的 grades YAML（支持 ```yaml 围栏）并合并进作答状态，返回匹配题数 */
+async function applyGradesText(
+  text: string,
+  store: Store,
+  file: string,
+  provider: { refresh(): Promise<void> | void },
+): Promise<number> {
+  let data: unknown;
+  try {
+    data = yamlLoad(extractYaml(text));
+  } catch (e) {
+    throw new Error(`解析失败：不是合法 YAML —— ${String(e)}`);
+  }
+  const parsed = gradeListSchema.safeParse(data);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .slice(0, 5)
+      .map((i) => `  · ${i.path.join('.')}: ${i.message}`)
+      .join('\n');
+    throw new Error(`批改结果格式不对（需要 { grades: { qid: {verdict,score,...} } }）：\n${issues}`);
+  }
+  const hit = await store.mergeGrades(file, parsed.data.grades);
+  await provider.refresh();
+  return hit;
+}
 
 export async function importGradesFromClipboard(
   ctx: vscode.ExtensionContext,
@@ -103,28 +129,76 @@ export async function importGradesFromClipboard(
     void vscode.window.showErrorMessage('剪贴板为空：先把 DeepSeek 的批改回复复制下来。');
     return;
   }
-  let data: unknown;
   try {
-    data = yamlLoad(extractYaml(text));
+    const hit = await applyGradesText(text, store, file, provider);
+    void vscode.window.showInformationMessage(
+      hit > 0 ? `已导入 ${hit} 条批改结果，错题已可在侧栏查看。` : '批改结果里没有匹配到本卷的题目 id，请确认是同一份卷。',
+    );
   } catch (e) {
-    void vscode.window.showErrorMessage(`解析失败：不是合法 YAML —— ${String(e)}`);
-    return;
+    void vscode.window.showErrorMessage(String((e as Error).message ?? e), { modal: true });
   }
-  const parsed = gradeListSchema.safeParse(data);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .slice(0, 5)
-      .map((i) => `  · ${i.path.join('.')}: ${i.message}`)
-      .join('\n');
-    void vscode.window.showErrorMessage(
-      `批改结果格式不对（需要 { grades: { qid: {verdict,score,...} } }）：\n${issues}`,
-      { modal: true },
+}
+
+/** 从 .quiz/import/ 目录导入批改结果（WorkBuddy 对话批改后写入） */
+export async function importGradesFromImportDir(
+  store: Store,
+  provider: { refresh(): Promise<void> | void },
+  file: string,
+): Promise<void> {
+  const root = store.wsRoot!;
+  const dir = path.join(root.fsPath, '.quiz', 'import');
+  if (!fs.existsSync(dir)) {
+    void vscode.window.showInformationMessage(
+      '.quiz/import/ 目录还不存在：到 WorkBuddy 对话里说「批改」，结果写入该目录后再来导入；也可以继续用「导入批改结果（从剪贴板）」。',
     );
     return;
   }
-  const hit = await store.mergeGrades(file, parsed.data.grades);
-  await provider.refresh();
-  void vscode.window.showInformationMessage(
-    hit > 0 ? `已导入 ${hit} 条批改结果，错题已可在侧栏查看。` : '批改结果里没有匹配到本卷的题目 id，请确认是同一份卷。',
-  );
+  const entries = fs
+    .readdirSync(dir)
+    .filter((f) => /\.(ya?ml|md)$/i.test(f))
+    .map((f) => {
+      const full = path.join(dir, f);
+      return { full, name: f, mtime: fs.statSync(full).mtimeMs };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+  if (entries.length === 0) {
+    void vscode.window.showInformationMessage('.quiz/import/ 里还没有批改结果文件（在 WorkBuddy 里说「批改」即可生成）。');
+    return;
+  }
+
+  // 优先取文件名以当前卷为前缀的结果；多个时让用户选
+  const base = path.parse(file).name;
+  const matched = entries.filter((e) => e.name.startsWith(base));
+  const candidates = matched.length > 0 ? matched : entries;
+  let chosen = candidates[0];
+  if (candidates.length > 1) {
+    const pick = await vscode.window.showQuickPick(
+      candidates.map((c) => ({ label: c.name, description: new Date(c.mtime).toLocaleString(), target: c })),
+      {
+        placeHolder:
+          matched.length > 0
+            ? `找到多个《${base}》的批改结果，选择要导入的文件（默认最新）`
+            : '没有文件名匹配当前卷，选择要导入的批改结果文件',
+      },
+    );
+    if (!pick) return;
+    chosen = pick.target;
+  }
+
+  const text = fs.readFileSync(chosen.full, 'utf8');
+  try {
+    const hit = await applyGradesText(text, store, file, provider);
+    if (hit > 0) {
+      const del = await vscode.window.showInformationMessage(
+        `已从 ${chosen.name} 导入 ${hit} 条批改结果，错题已可在侧栏查看。`,
+        '删除该结果文件',
+        '保留',
+      );
+      if (del === '删除该结果文件') fs.rmSync(chosen.full);
+    } else {
+      void vscode.window.showInformationMessage('批改结果里没有匹配到本卷的题目 id，请确认是同一份卷。');
+    }
+  } catch (e) {
+    void vscode.window.showErrorMessage(String((e as Error).message ?? e), { modal: true });
+  }
 }

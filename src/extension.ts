@@ -15,6 +15,7 @@ import {
   readPrompt,
   exportAnswers,
   importGradesFromClipboard,
+  importGradesFromImportDir,
 } from './core/review';
 
 /** 兼容多种调用来源：文件名、树节点对象、Uri、TreeItem */
@@ -321,6 +322,13 @@ export function activate(context: vscode.ExtensionContext): void {
       const file = QuizPanel.currentPaperFile ?? (await pickPaper(store));
       if (!file) return;
       await importGradesFromClipboard(context, store, provider, file);
+    }),
+
+    vscode.commands.registerCommand('linux-c-quiz.importGradesFile', async () => {
+      if (!requireWs()) return;
+      const file = QuizPanel.currentPaperFile ?? (await pickPaper(store));
+      if (!file) return;
+      await importGradesFromImportDir(store, provider, file);
     }),
 
     vscode.commands.registerCommand('linux-c-quiz.reviewKnowledge', async (arg?: unknown) => {
