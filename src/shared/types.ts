@@ -62,6 +62,12 @@ export const paperSchema = z.object({
     title: z.string(),
     topics: z.array(z.string()).default([]),
     date: z.string().optional(),
+    /**
+     * 题型分值（每题满分），如 { single: 2, fill: 2, short: 4, coding: 4 }。
+     * 提供后整卷总分 = Σ(每题得分% × 分值) / Σ(已判定题分值)，即卷面百分制；
+     * 不提供时退回每题等权平均。
+     */
+    scoreWeights: z.record(z.string(), z.number()).optional(),
   }),
   questions: z.array(questionSchema).min(1),
 });

@@ -20,15 +20,20 @@ export function questionVerdict(a: Answer | undefined): 'correct' | 'partial' | 
  * 计算整卷成绩单（统计维度）。
  * @param overall 批改者给的整卷总评；只存批改者的原文——自动评语由 UI 层按统计现场生成，
  *                因此重算时不要把自动文本写回存储。
+ * @param weights 题型分值表（每题满分），如 { single: 2, short: 4 }。
+ *                提供时总分 = Σ(得分% × 分值) / Σ(已判定题分值)，即卷面百分制；
+ *                未提供或某题型缺省时该题按 1 分等权处理。
  */
 export function computeSummary(
   questions: Question[],
   answers: Record<string, Answer>,
   overall?: string,
+  weights?: Record<string, number>,
 ): PaperSummary {
   const counts = { correct: 0, partial: 0, wrong: 0 };
   const weakTagFreq = new Map<string, number>();
-  let sum = 0;
+  let weightedSum = 0;
+  let weightSum = 0;
   let judged = 0;
 
   for (const q of questions) {
@@ -36,7 +41,9 @@ export function computeSummary(
     const score = questionScore(a);
     if (score === null) continue;
     judged++;
-    sum += score;
+    const w = weights?.[q.type] ?? 1;
+    weightedSum += score * w;
+    weightSum += w;
     const v = questionVerdict(a);
     if (v) counts[v]++;
     if ((v === 'wrong' || v === 'partial') && q.tags.length) {
@@ -51,7 +58,7 @@ export function computeSummary(
     .map(([t]) => t);
 
   return {
-    totalScore: judged > 0 ? Math.round(sum / judged) : 0,
+    totalScore: weightSum > 0 ? Math.round(weightedSum / weightSum) : 0,
     judgedCount: judged,
     questionCount,
     pendingCount: questionCount - judged,

@@ -201,7 +201,7 @@ export class Store {
     overall?: string,
   ): PaperSummary {
     const finalOverall = overall !== undefined ? overall : (st.summaries[paperFile]?.overall ?? '');
-    const summary = computeSummary(paper.questions, st.papers[paperFile] ?? {}, finalOverall);
+    const summary = computeSummary(paper.questions, st.papers[paperFile] ?? {}, finalOverall, paper.paper.scoreWeights);
     st.summaries[paperFile] = summary;
     return summary;
   }
