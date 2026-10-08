@@ -23,6 +23,7 @@ export function questionVerdict(a: Answer | undefined): 'correct' | 'partial' | 
  * @param weights 题型分值表（每题满分），如 { single: 2, short: 4 }。
  *                提供时总分 = Σ(得分% × 分值) / Σ(已判定题分值)，即卷面百分制；
  *                未提供或某题型缺省时该题按 1 分等权处理。
+ *                单题上的 question.score 优先级最高，用于同题型分值不同的情况。
  */
 export function computeSummary(
   questions: Question[],
@@ -41,7 +42,7 @@ export function computeSummary(
     const score = questionScore(a);
     if (score === null) continue;
     judged++;
-    const w = weights?.[q.type] ?? 1;
+    const w = q.score ?? weights?.[q.type] ?? 1;
     weightedSum += score * w;
     weightSum += w;
     const v = questionVerdict(a);

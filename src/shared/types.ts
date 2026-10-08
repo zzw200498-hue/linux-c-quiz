@@ -55,6 +55,11 @@ export const questionSchema = z.object({
   explain: z.string().optional(),
   tags: z.array(z.string()).default([]),
   difficulty: z.number().default(1),
+  /**
+   * 本题满分（单题分值）。优先于 paper.scoreWeights[type]——
+   * 用于同一题型分值不同的场景，如判断题 2 分而选择题 3 分。
+   */
+  score: z.number().optional(),
 });
 
 export const paperSchema = z.object({
