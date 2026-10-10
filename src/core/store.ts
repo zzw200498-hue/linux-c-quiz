@@ -6,6 +6,7 @@ import {
   answerSchema,
   paperSchema,
   stateSchema,
+  type Grade,
   type PaperFile,
   type PaperSummary,
   type QuizState,
@@ -13,10 +14,12 @@ import {
 } from '../shared/types';
 import { computeSummary } from '../shared/summary';
 import {
+  isPassScore,
   listWrongbook,
   recordPractice,
   settleGrades,
   syncWrongbook as syncWrongbookPure,
+  verdictFromScore,
   wrongKey,
   type WrongbookKind,
 } from '../shared/wrongbook';
@@ -268,6 +271,38 @@ export class Store {
     await this.saveState(st);
     const after = st.wrongbook[k];
     return { ...after, passed: after.passed && !before.passed ? true : after.passed };
+  }
+
+  /**
+   * 错题本刷题时给主观题自行打分（0-100）：
+   * - 分数写回原卷作答的 grade（source='self'），题目上会显示「自评 xx 分」
+   * - ≥60 计一次连对（连对 3 次过关），<60 打回待攻克（连对清零）
+   * - 不重算原卷成绩单：自评只用于刷题进度，不覆盖正式考试/批改的分数
+   */
+  async saveSelfGrade(
+    paperFile: string,
+    qid: string,
+    score: number,
+  ): Promise<{ grade: Grade; entry: WrongbookEntry | null }> {
+    const s = Math.max(0, Math.min(100, Math.round(score)));
+    const verdict = verdictFromScore(s);
+    const grade: Grade = {
+      verdict,
+      score: s,
+      comment: '自行打分',
+      correct_answer: '',
+      missed_points: [],
+      source: 'self',
+    };
+    const st = await this.loadState();
+    const prev = st.papers[paperFile]?.[qid];
+    await this.saveAnswer(paperFile, qid, {
+      value: prev?.value ?? null,
+      correct: verdict === 'correct' ? true : verdict === 'wrong' ? false : null,
+      grade,
+    });
+    const entry = await this.recordWrongbookPractice(paperFile, qid, isPassScore(s));
+    return { grade, entry };
   }
 
   /** 批改导入后结算主观题练习的连对次数 */

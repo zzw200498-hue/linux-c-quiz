@@ -90,6 +90,8 @@ export const gradeSchema = z.object({
   comment: z.string().default(''),
   correct_answer: z.string().default(''),
   missed_points: z.array(z.string()).default([]),
+  /** 分数来源：ai=导入的批改结果（默认）；self=刷题时用户自行打分 */
+  source: z.enum(['ai', 'self']).default('ai'),
 });
 
 export const answerSchema = z.object({
@@ -238,13 +240,17 @@ export type HostToWeb =
   | { type: 'runResults'; qid: string; data: RunSummary }
   | { type: 'scratchSaved'; qid: string; code: string }
   | { type: 'summaryUpdated'; data: PaperSummary }
-  | { type: 'wrongbookProgress'; qid: string; streak: number; passed: boolean; graduated: boolean };
+  | { type: 'wrongbookProgress'; qid: string; streak: number; passed: boolean; graduated: boolean }
+  /** 自行打分已保存：把分数回灌给 Webview（同时更新连对进度） */
+  | { type: 'selfGraded'; qid: string; grade: Grade };
 
 export type WebToHost =
   | { type: 'ready' }
   | { type: 'saveAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
   /** 错题本刷题：correct 为 null 表示主观题，等批改后结算连对次数 */
   | { type: 'saveWrongbookAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
+  /** 错题本刷题：主观题自行打分（0-100），≥60 计一次连对，<60 打回待攻克 */
+  | { type: 'selfGrade'; qid: string; score: number }
   | { type: 'copyText'; text: string }
   | { type: 'openScratch'; qid: string; code: string }
   | { type: 'runTests'; qid: string; code: string }

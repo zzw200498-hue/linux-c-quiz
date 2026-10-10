@@ -127,4 +127,7 @@ node dist/preview-knowledge.cjs "bank" "q17,q21"
 - [x] v0.1.4 侧栏悬停知识点 + 整卷知识点速览（复习）
 - [x] v0.2 编程题 Runner：scratch 目录 + 真实 gcc/make 编译运行 + 用例比对（local / ssh / off 三档）
 - [ ] v0.3 交叉编译 Runner：arm-linux-gnueabihf-gcc + qemu-user-static（改 `quiz.cCompiler` + 远端装 qemu 即可）
-- [ ] v0.4 错题本重做、SM-2 间隔复习、标签统计
+- [x] v0.4 错题本（待攻克 / 已过关，连对 3 次毕业）
+- [x] v0.4.1 主观题自行打分（错题本 / 随机刷题里给 0-100 分，≥60 记一次连对，<60 打回）
+- [ ] v0.5 全库随机出题（只抽做过的题，每次 15 道）+ SM-2 间隔复习 + 统计面板
+- [ ] v0.6 交叉编译 / 标签统计 / Anki 导出

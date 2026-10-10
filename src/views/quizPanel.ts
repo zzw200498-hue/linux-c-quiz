@@ -224,6 +224,26 @@ export class QuizPanel {
           }
           break;
         }
+        case 'selfGrade': {
+          // 只开放给错题本 / 随机刷题模式（正式卷仍走导出 → AI 批改 → 导入）
+          const src = this.wrongbookSource ? this.sourcePaperOf(msg.qid) : undefined;
+          if (!src) break;
+          const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
+          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
+          const { grade, entry } = await store.saveSelfGrade(src, msg.qid, msg.score);
+          await provider.refresh();
+          this.post({ type: 'selfGraded', qid: msg.qid, grade });
+          if (entry) {
+            this.post({
+              type: 'wrongbookProgress',
+              qid: msg.qid,
+              streak: entry.streak,
+              passed: entry.passed,
+              graduated: entry.passed && !wasPassed,
+            });
+          }
+          break;
+        }
         case 'copyText':
           await vscode.env.clipboard.writeText(msg.text);
           void vscode.window.showInformationMessage('已复制到剪贴板。');

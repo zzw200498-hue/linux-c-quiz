@@ -10,6 +10,7 @@ import { ChoiceView } from './components/ChoiceView';
 import { FillView } from './components/FillView';
 import { SubjectiveView } from './components/SubjectiveView';
 import { CodingView } from './components/CodingView';
+import { SelfGrade } from './components/SelfGrade';
 
 export function App() {
   const [data, setData] = useState<InitData | null>(null);
@@ -37,6 +38,22 @@ export function App() {
       } else if (m.type === 'wrongbookProgress') {
         setStreaks((prev) => ({ ...prev, [m.qid]: { streak: m.streak, passed: m.passed } }));
         if (m.graduated) setGraduated(m.qid);
+      } else if (m.type === 'selfGraded') {
+        // 自行打分已落盘：把分数回灌到本地作答里显示
+        setAnswers((prev) => {
+          const old = prev[m.qid];
+          return {
+            ...prev,
+            [m.qid]: {
+              ...old,
+              value: old?.value ?? null,
+              correct:
+                m.grade.verdict === 'correct' ? true : m.grade.verdict === 'wrong' ? false : null,
+              ts: old?.ts ?? Date.now(),
+              grade: m.grade,
+            },
+          };
+        });
       }
     };
     window.addEventListener('message', handler);
@@ -169,7 +186,7 @@ export function App() {
           <span className="hint">
             {isObjective(q)
               ? '客观题：答完立即判定，答错清零'
-              : '主观题：提交后需批改，导入批改结果后计入连对次数'}
+              : `主观题：保存后可自行打分（≥60 记一次连对），也可导出交给 AI 批改`}
           </span>
         </div>
       )}
@@ -241,6 +258,10 @@ export function App() {
         <SubjectiveView q={q} answer={a} onSave={onSave} />
       )}
 
+      {wrong && !isObjective(q) && (
+        <SelfGrade key={q.id} q={q} answer={a} streak={streak} passed={passed} />
+      )}
+
       {judged && q.explain && (
         <div className={`explain ${a!.correct ? 'ok' : 'bad'}`}>
           <b>{a!.correct ? '✓ 回答正确' : '✗ 回答错误'}</b>
@@ -251,7 +272,7 @@ export function App() {
       {a?.grade && (
         <div className={`grade ${a.grade.verdict}`}>
           <b>
-            批改：{a.grade.score} 分 ·{' '}
+            {a.grade.source === 'self' ? '自评' : '批改'}：{a.grade.score} 分 ·{' '}
             {a.grade.verdict === 'correct' ? '正确' : a.grade.verdict === 'partial' ? '部分正确' : '错误'}
           </b>
           {a.grade.comment && <div>{a.grade.comment}</div>}

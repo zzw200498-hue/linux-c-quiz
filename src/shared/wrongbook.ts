@@ -3,6 +3,24 @@ import type { Answer } from './types';
 /** 连续答对几次才算过关（过关后移入「已过关」组） */
 export const WRONG_STREAK_TARGET = 3;
 
+/**
+ * 及格线：自行打分 / 批改得分 ≥ 60 才算「答对一次」（计入连对）；
+ * < 60 一律打回待攻克（连对清零）。用户拍板：partial(30-59) 不算通过。
+ */
+export const PASS_SCORE = 60;
+
+/** 由百分制得分推导判定：≥90 正确 / ≥60 部分正确 / <60 错误 */
+export function verdictFromScore(score: number): 'correct' | 'partial' | 'wrong' {
+  if (score >= 90) return 'correct';
+  if (score >= PASS_SCORE) return 'partial';
+  return 'wrong';
+}
+
+/** 得分是否算「答对一次」（错题本连对 +1；SM-2 里对应 q≥3） */
+export function isPassScore(score: number): boolean {
+  return score >= PASS_SCORE;
+}
+
 export type WrongbookKind = 'active' | 'passed';
 
 export interface WrongbookEntry {
