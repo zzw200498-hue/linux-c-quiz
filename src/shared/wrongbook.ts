@@ -1,4 +1,4 @@
-import type { Answer } from './types';
+import type { Answer, Question } from './types';
 
 /** 连续答对几次才算过关（过关后移入「已过关」组） */
 export const WRONG_STREAK_TARGET = 3;
@@ -170,4 +170,37 @@ export function shuffle<T>(arr: T[]): T[] {
     arr[j] = t;
   }
   return arr;
+}
+
+/** 面板里的题 id → 原卷文件名 + 原题 id（错题本跨卷抽题时必须做这个映射） */
+export interface WrongbookQuestionSource {
+  paper: string;
+  qid: string;
+}
+
+/**
+ * 错题本 / 随机练习：把从多张卷收集来的题目合成一份「虚拟试卷」的题目列表。
+ *
+ * 为什么必须重命名题 id：
+ * 每张卷的题号都是 q1、q2……，跨卷抽到一起就会撞号。面板里所有按题记的状态
+ * （连对进度、本次是否已提交判定、是否已展开参考答案、作答）都以题 id 为键，
+ * 撞号会让两道不同的题共用一份状态 —— 典型症状是「打开一道还没做的题，
+ * 却已经有判定结果 / 解析，输入框里还有别的卷的答案」。
+ *
+ * 所以面板里的题 id 统一改成 `试卷文件名#题id`（和错题本 state 的键同构）。
+ * 返回的 source 用来把这些 id 还原成原卷 + 原题 id（作答写回、scratch 目录要用）。
+ */
+export function buildWrongbookQuestions(items: { paperFile: string; q: Question }[]): {
+  questions: Question[];
+  source: Record<string, WrongbookQuestionSource>;
+} {
+  const questions: Question[] = [];
+  const source: Record<string, WrongbookQuestionSource> = {};
+  for (const item of items) {
+    const id = wrongKey(item.paperFile, item.q.id);
+    // 浅拷贝：题库里的题目对象会被 show() 缓存复用，绝不能就地改 id
+    questions.push({ ...item.q, id });
+    source[id] = { paper: item.paperFile, qid: item.q.id };
+  }
+  return { questions, source };
 }

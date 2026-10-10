@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import type { Answer, HostToWeb, PaperFile, Question, WebToHost } from '../shared/types';
 import type { Store } from '../core/store';
-import { shuffle } from '../shared/wrongbook';
+import { shuffle, buildWrongbookQuestions } from '../shared/wrongbook';
+import type { WrongbookQuestionSource } from '../shared/wrongbook';
 import { ScratchManager } from '../core/scratch';
 import { runQuestionTests } from '../core/tester';
 import { createRunner, readRunnerConfig } from '../runner';
@@ -13,8 +14,8 @@ export class QuizPanel {
   private static paper?: PaperFile;
   private static bound = false;
   private static scratch?: ScratchManager;
-  /** 错题本模式：qid → 来源试卷文件名 */
-  private static wrongbookSource?: Record<string, string>;
+  /** 错题本模式：面板题 id（`试卷#题id`）→ 原卷 + 原题 id */
+  private static wrongbookSource?: Record<string, WrongbookQuestionSource>;
   private static wrongbookKind?: 'active' | 'passed';
 
   static get currentPaperFile(): string | undefined {
@@ -22,9 +23,25 @@ export class QuizPanel {
     return this.wrongbookSource ? undefined : this.paper?.file;
   }
 
-  /** 错题本题目所属的原卷（用于 scratch / 作答回写） */
-  private static sourcePaperOf(qid: string): string | undefined {
-    return this.wrongbookSource?.[qid] ?? this.paper?.file;
+  /**
+   * 面板题 id → 实际作答存储位置（原卷文件名 + 原题 id）。
+   * 错题本模式下题 id 带卷名前缀，这里还原；普通卷就是题 id 本身。
+   */
+  private static resolveTarget(panelQid: string): WrongbookQuestionSource {
+    const hit = this.wrongbookSource?.[panelQid];
+    if (hit) return hit;
+    return { paper: this.paper?.file ?? '', qid: panelQid };
+  }
+
+  /** 反向查：某来源卷的某道题在当前面板里对应哪个题 id（scratch 保存回写时用） */
+  private static panelQidFor(paper: string, qid: string): string | undefined {
+    if (this.wrongbookSource) {
+      for (const [id, v] of Object.entries(this.wrongbookSource)) {
+        if (v.paper === paper && v.qid === qid) return id;
+      }
+      return undefined;
+    }
+    return this.paper?.file === paper ? qid : undefined;
   }
 
   /** 打开错题本刷题：跨卷抽题 + 随机顺序 */
@@ -64,23 +81,21 @@ export class QuizPanel {
     }
 
     shuffle(items);
-    const progress: Record<string, { streak: number; passed: boolean; tries: number }> = {};
-    for (const e of entries) {
-      progress[e.qid] = { streak: e.streak, passed: e.passed, tries: e.tries };
-    }
+    // 题 id 唯一化（`试卷#题id`）：不同卷里都有 q1，直接用原 id 会让面板状态跨卷串台
+    const { questions, source } = buildWrongbookQuestions(items);
 
     const paper: PaperFile = {
       file: `wrongbook:${kind}`,
       paper: {
         title:
           kind === 'active'
-            ? `错题本 · 待攻克（${items.length} 题 · 随机顺序）`
-            : `已过关错题（${items.length} 题）`,
+            ? `错题本 · 待攻克（${questions.length} 题 · 随机顺序）`
+            : `已过关错题（${questions.length} 题）`,
         topics: [],
       },
-      questions: items.map((i) => i.q),
+      questions,
     };
-    this.wrongbookSource = Object.fromEntries(items.map((i) => [i.q, i.paperFile]));
+    this.wrongbookSource = source;
     this.wrongbookKind = kind;
     this.show(ctx, store, provider, paper);
   }
@@ -128,10 +143,10 @@ export class QuizPanel {
     const wrong = this.wrongbookSource;
     const answers: Record<string, Answer> = {};
     if (wrong) {
-      // 错题本：答案分散在各来源卷里
+      // 错题本：答案分散在各来源卷里（面板题 id → 原卷 + 原题 id）
       for (const q of this.paper.questions) {
         const src = wrong[q.id];
-        const a = src ? st.papers[src]?.[q.id] : undefined;
+        const a = src ? st.papers[src.paper]?.[src.qid] : undefined;
         if (a) answers[q.id] = a;
       }
     } else {
@@ -142,7 +157,7 @@ export class QuizPanel {
       for (const q of this.paper.questions) {
         const src = wrong[q.id];
         if (!src) continue;
-        const e = st.wrongbook[`${src}#${q.id}`];
+        const e = st.wrongbook[`${src.paper}#${src.qid}`];
         if (e) progress[q.id] = { streak: e.streak, passed: e.passed, tries: e.tries };
       }
     }
@@ -184,9 +199,8 @@ export class QuizPanel {
         if (!meta) return;
         const code = doc.getText();
         await store.saveAnswer(meta.paperFile, meta.qid, { value: code, correct: null });
-        if (this.sourcePaperOf(meta.qid) === meta.paperFile) {
-          this.post({ type: 'scratchSaved', qid: meta.qid, code });
-        }
+        const panelQid = this.panelQidFor(meta.paperFile, meta.qid);
+        if (panelQid) this.post({ type: 'scratchSaved', qid: panelQid, code });
         await provider.refresh();
       }),
     );
@@ -198,7 +212,9 @@ export class QuizPanel {
           break;
         case 'saveAnswer':
           if (this.paper) {
-            await store.saveAnswer(this.sourcePaperOf(msg.qid) ?? this.paper.file, msg.qid, {
+            const t = this.resolveTarget(msg.qid);
+            if (!t.paper) break;
+            await store.saveAnswer(t.paper, t.qid, {
               value: msg.value,
               correct: msg.correct,
             });
@@ -206,12 +222,12 @@ export class QuizPanel {
           }
           break;
         case 'saveWrongbookAnswer': {
-          const src = this.sourcePaperOf(msg.qid);
-          if (!src) break;
-          await store.saveAnswer(src, msg.qid, { value: msg.value, correct: msg.correct });
+          const t = this.resolveTarget(msg.qid);
+          if (!t.paper) break;
+          await store.saveAnswer(t.paper, t.qid, { value: msg.value, correct: msg.correct });
           const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
-          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
-          const entry = await store.recordWrongbookPractice(src, msg.qid, msg.correct);
+          const wasPassed = before.find((e) => e.paper === t.paper && e.qid === t.qid)?.passed ?? false;
+          const entry = await store.recordWrongbookPractice(t.paper, t.qid, msg.correct);
           await provider.refresh();
           if (entry) {
             this.post({
@@ -226,11 +242,12 @@ export class QuizPanel {
         }
         case 'selfGrade': {
           // 只开放给错题本 / 随机刷题模式（正式卷仍走导出 → AI 批改 → 导入）
-          const src = this.wrongbookSource ? this.sourcePaperOf(msg.qid) : undefined;
-          if (!src) break;
+          if (!this.wrongbookSource) break;
+          const t = this.resolveTarget(msg.qid);
+          if (!t.paper) break;
           const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
-          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
-          const { grade, entry } = await store.saveSelfGrade(src, msg.qid, msg.score);
+          const wasPassed = before.find((e) => e.paper === t.paper && e.qid === t.qid)?.passed ?? false;
+          const { grade, entry } = await store.saveSelfGrade(t.paper, t.qid, msg.score);
           await provider.refresh();
           this.post({ type: 'selfGraded', qid: msg.qid, grade });
           if (entry) {
@@ -246,11 +263,12 @@ export class QuizPanel {
         }
         case 'selfJudge': {
           // 客观题自评（错题本 / 随机刷题模式）：pass=true 计一次连对，false 打回待攻克
-          const src = this.wrongbookSource ? this.sourcePaperOf(msg.qid) : undefined;
-          if (!src) break;
+          if (!this.wrongbookSource) break;
+          const t = this.resolveTarget(msg.qid);
+          if (!t.paper) break;
           const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
-          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
-          const entry = await store.recordWrongbookPractice(src, msg.qid, msg.pass);
+          const wasPassed = before.find((e) => e.paper === t.paper && e.qid === t.qid)?.passed ?? false;
+          const entry = await store.recordWrongbookPractice(t.paper, t.qid, msg.pass);
           await provider.refresh();
           if (entry) {
             this.post({
@@ -294,10 +312,13 @@ export class QuizPanel {
     const paper = this.paper;
     const q = paper?.questions.find((x) => x.id === qid);
     // 传入 Webview 当前作答内容：简答/改写题首次打开时据此猜测入口文件类型（Makefile / main.c / answer.txt）
-    // 错题本模式下题目来自别的卷，scratch 目录要挂到原卷名下
-    const owner = q ? (this.sourcePaperOf(q.id) ?? paper?.file) : undefined;
-    const info = paper && q && owner ? this.scratch?.ensure(owner, q, webCode) : undefined;
-    if (!paper || !q || !info) {
+    // 错题本模式下题目来自别的卷：作答写回、scratch 目录都要挂到原卷 + 原题 id 名下
+    const t = q ? this.resolveTarget(q.id) : undefined;
+    const info =
+      paper && q && t && t.paper
+        ? this.scratch?.ensure(t.paper, { ...q, id: t.qid }, webCode)
+        : undefined;
+    if (!paper || !q || !t || !t.paper || !info) {
       void vscode.window.showErrorMessage('请先在工作区中打开试卷。');
       return;
     }
@@ -307,7 +328,7 @@ export class QuizPanel {
     if (!doc && typeof webCode === 'string' && webCode.trim() && webCode !== disk) {
       // 用户在 Webview 里写了代码但还没进编辑器 → 以 Webview 内容为准
       fs.writeFileSync(info.entryPath, webCode, 'utf8');
-      await store.saveAnswer(owner ?? paper.file, qid, { value: webCode, correct: null });
+      await store.saveAnswer(t.paper, t.qid, { value: webCode, correct: null });
       await provider.refresh();
     }
 
@@ -326,9 +347,10 @@ export class QuizPanel {
   ): Promise<void> {
     const paper = this.paper;
     const q = paper?.questions.find((x) => x.id === qid);
-    const owner = q ? (this.sourcePaperOf(q.id) ?? paper?.file) : undefined;
-    const info = paper && q && owner ? this.scratch?.ensure(owner, q) : undefined;
-    if (!paper || !q || !info) return;
+    const t = q ? this.resolveTarget(q.id) : undefined;
+    const info =
+      paper && q && t && t.paper ? this.scratch?.ensure(t.paper, { ...q, id: t.qid }) : undefined;
+    if (!paper || !q || !t || !t.paper || !info) return;
 
     // 代码来源优先级：已打开的编辑器（含未保存修改）> Webview 里的新内容 > 磁盘
     let code = '';
@@ -353,7 +375,7 @@ export class QuizPanel {
       timeoutMs: cfg.timeoutMs,
     });
 
-    await store.saveAnswer(owner ?? paper.file, qid, {
+    await store.saveAnswer(t.paper, t.qid, {
       value: code,
       correct: null,
       lastRun: { passed: summary.passed, total: summary.total, ts: Date.now() },

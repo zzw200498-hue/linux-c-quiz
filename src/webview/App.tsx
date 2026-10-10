@@ -3,7 +3,7 @@ import type { Answer, HostToWeb, InitData, PaperSummary, Question, WebToHost } f
 import { TYPE_LABEL } from '../shared/types';
 import { autoOverallText } from '../shared/summary';
 import { WRONG_STREAK_TARGET } from '../shared/wrongbook';
-import { isEmptyAnswer, judge, isObjective } from '../shared/judge';
+import { isEmptyAnswer, judge, isObjective, referenceAnswerLines } from '../shared/judge';
 import { md } from './md';
 import { post } from './vscode';
 import { ChoiceView } from './components/ChoiceView';
@@ -302,7 +302,7 @@ export function App() {
             ? {
                 onCommit: commitObjective,
                 commitLabel: '提交并判定（计入连对）',
-                judgedOverride: !!(committed[q.id] ?? revealed[q.id]),
+                judgedOverride: !!committed[q.id],
               }
             : {})}
         />
@@ -315,7 +315,7 @@ export function App() {
             ? {
                 onCommit: commitObjective,
                 commitLabel: '提交并判定（计入连对）',
-                judgedOverride: !!(committed[q.id] ?? revealed[q.id]),
+                judgedOverride: !!committed[q.id],
               }
             : {})}
         />
@@ -360,6 +360,20 @@ export function App() {
           <div className="selfjudge-hint">
             点「提交并判定」是自动判定；答案写法多样（输出结果、命令顺序、等价写法）时，可直接按参考答案自主判分。
           </div>
+          {revealed[q.id] && (
+            <div className="answer-reveal">
+              <b>参考答案（只看答案，不计分、不结算）</b>
+              {referenceAnswerLines(q).length > 0 ? (
+                referenceAnswerLines(q).map((line, i) => (
+                  <div key={i} className="answer-line">
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div className="answer-line dim">本题没有内置参考答案，请对照解析自己判断。</div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -217,9 +217,12 @@ export type RunSummary = {
 /** 错题本刷题模式的附加信息（题目来自多张卷） */
 export type WrongbookInit = {
   kind: 'active' | 'passed';
-  /** qid → 来源试卷文件名（作答写回原卷） */
-  source: Record<string, string>;
-  /** qid → 连对进度 */
+  /**
+   * 面板题 id（`试卷#题id`）→ 来源试卷 + 原题 id。
+   * 错题本的题 id 必须带卷名前缀，否则不同卷里同号题（都有 q1）会在面板里串台。
+   */
+  source: Record<string, { paper: string; qid: string }>;
+  /** 面板题 id → 连对进度 */
   progress: Record<string, { streak: number; passed: boolean; tries: number }>;
 };
 

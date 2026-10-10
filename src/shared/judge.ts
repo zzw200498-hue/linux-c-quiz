@@ -52,3 +52,37 @@ export function isEmptyAnswer(value: string | string[] | null | undefined): bool
   if (Array.isArray(value)) return value.every((v) => !normalize(String(v ?? '')));
   return normalize(value) === '';
 }
+
+const LETTERS = 'ABCDEFGH';
+
+/**
+ * 生成「参考答案」的可读文本（错题本里点「查看参考答案」时用）。
+ * 只看答案、不参与自动判定：机器判定拿不准的（输出结果、命令顺序、等价写法）由学习者自己对照。
+ */
+export function referenceAnswerLines(q: Question): string[] {
+  if (q.type === 'single' || q.type === 'multi') {
+    const letters = typeof q.answer === 'string' ? [q.answer] : (q.answer ?? []);
+    const choices = q.choices ?? [];
+    return letters
+      .map(String)
+      .filter((l) => l.trim() !== '')
+      .map((l) => {
+        const i = LETTERS.indexOf(l.trim().toUpperCase());
+        const text = i >= 0 ? choices[i] : undefined;
+        return text ? `${l}. ${text}` : l;
+      });
+  }
+
+  if (q.type === 'fill') {
+    const blanks = q.blanks ?? [];
+    return blanks.map((b, i) => {
+      const all = [b.answer, ...(b.alt ?? [])].filter((x) => String(x ?? '').trim() !== '');
+      return `空${i + 1}：${all.join('  /  ')}`;
+    });
+  }
+
+  if (q.referenceAnswer) return [q.referenceAnswer];
+  if (typeof q.answer === 'string') return q.answer ? [q.answer] : [];
+  if (Array.isArray(q.answer)) return q.answer.length > 0 ? [q.answer.join('  /  ')] : [];
+  return [];
+}
