@@ -244,6 +244,25 @@ export class QuizPanel {
           }
           break;
         }
+        case 'selfJudge': {
+          // 客观题自评（错题本 / 随机刷题模式）：pass=true 计一次连对，false 打回待攻克
+          const src = this.wrongbookSource ? this.sourcePaperOf(msg.qid) : undefined;
+          if (!src) break;
+          const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
+          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
+          const entry = await store.recordWrongbookPractice(src, msg.qid, msg.pass);
+          await provider.refresh();
+          if (entry) {
+            this.post({
+              type: 'wrongbookProgress',
+              qid: msg.qid,
+              streak: entry.streak,
+              passed: entry.passed,
+              graduated: entry.passed && !wasPassed,
+            });
+          }
+          break;
+        }
         case 'copyText':
           await vscode.env.clipboard.writeText(msg.text);
           void vscode.window.showInformationMessage('已复制到剪贴板。');

@@ -22,6 +22,10 @@ export function App() {
   const [graduated, setGraduated] = useState<string | null>(null);
   /** 错题本刷题：本次会话里已点「提交并判定」的题（判定前不显示对错、不锁定选项） */
   const [committed, setCommitted] = useState<Record<string, boolean>>({});
+  /** 错题本刷题：已展开参考答案的题（只看答案、不计分） */
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  /** 错题本刷题：客观题自评结果（答案写法多样时自己判对错） */
+  const [selfJudged, setSelfJudged] = useState<Record<string, 'pass' | 'fail'>>({});
 
   useEffect(() => {
     const handler = (e: MessageEvent<HostToWeb>) => {
@@ -33,6 +37,8 @@ export function App() {
         setReport(m.data.summary);
         setStreaks(m.data.wrongbook?.progress ?? {});
         setCommitted({});
+        setRevealed({});
+        setSelfJudged({});
         setGraduated(null);
         const i = m.data.questions.findIndex((q) => q.id === m.data.startQid);
         setIdx(i >= 0 ? i : 0);
@@ -153,12 +159,28 @@ export function App() {
     saveWrongbook(q.id, v, judge(q, v) === true);
   };
 
+  /**
+   * 错题本：客观题自主判分。
+   * 填空题答案写法多样（输出结果、命令顺序、等价写法），自动判定可能误杀 —— 看一眼参考答案自己判。
+   */
+  const judgeSelfObjective = (pass: boolean) => {
+    if (!wrong || selfJudged[q.id]) return;
+    setSelfJudged((prev) => ({ ...prev, [q.id]: pass ? 'pass' : 'fail' }));
+    post({ type: 'selfJudge', qid: q.id, pass } satisfies WebToHost);
+  };
+
   /** 错题本：客观题即时判定计连对；主观题存为待批改，导入批改后结算 */
   const onSave = (v: string | string[] | null, _c: boolean | null) => {
     if (!wrong) return save(q.id, v, _c);
     if (isEmptyAnswer(v)) {
       // 清空 / 重做本题：只清作答并解锁，绝不结算（否则会被当成答错）
       setCommitted((prev) => ({ ...prev, [q.id]: false }));
+      setRevealed((prev) => ({ ...prev, [q.id]: false }));
+      setSelfJudged((prev) => {
+        const next = { ...prev };
+        delete next[q.id];
+        return next;
+      });
       return save(q.id, v, null);
     }
     // 客观题作答过程：只更新作答内容，保留原卷判定不动（错题本的判定状态由 committed 单独管）
@@ -280,7 +302,7 @@ export function App() {
             ? {
                 onCommit: commitObjective,
                 commitLabel: '提交并判定（计入连对）',
-                judgedOverride: committed[q.id] ?? false,
+                judgedOverride: !!(committed[q.id] ?? revealed[q.id]),
               }
             : {})}
         />
@@ -293,7 +315,7 @@ export function App() {
             ? {
                 onCommit: commitObjective,
                 commitLabel: '提交并判定（计入连对）',
-                judgedOverride: committed[q.id] ?? false,
+                judgedOverride: !!(committed[q.id] ?? revealed[q.id]),
               }
             : {})}
         />
@@ -301,6 +323,44 @@ export function App() {
         <CodingView q={q} answer={a} onSave={onSave} />
       ) : (
         <SubjectiveView q={q} answer={a} onSave={onSave} />
+      )}
+
+      {wrong && isObjective(q) && (
+        <div className="selfjudge">
+          <div className="selfjudge-head">
+            <span className="selfjudge-title">自主判分</span>
+            {selfJudged[q.id] && (
+              <span className={`chip ${selfJudged[q.id] === 'pass' ? 'ok' : 'bad'}`}>
+                已自评{selfJudged[q.id] === 'pass' ? '答对 · 计入连对' : '答错 · 打回待攻克'}
+              </span>
+            )}
+          </div>
+          <div className="selfjudge-row">
+            <button
+              className="btn ghost"
+              onClick={() => setRevealed((p) => ({ ...p, [q.id]: !p[q.id] }))}
+            >
+              {revealed[q.id] ? '隐藏参考答案' : '查看参考答案'}
+            </button>
+            <button
+              className="btn primary"
+              disabled={!!selfJudged[q.id]}
+              onClick={() => judgeSelfObjective(true)}
+            >
+              ✓ 我算对（计入连对）
+            </button>
+            <button
+              className="btn ghost"
+              disabled={!!selfJudged[q.id]}
+              onClick={() => judgeSelfObjective(false)}
+            >
+              ✗ 我算错（打回）
+            </button>
+          </div>
+          <div className="selfjudge-hint">
+            点「提交并判定」是自动判定；答案写法多样（输出结果、命令顺序、等价写法）时，可直接按参考答案自主判分。
+          </div>
+        </div>
       )}
 
       {wrong && !isObjective(q) && (

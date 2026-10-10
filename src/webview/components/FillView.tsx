@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Answer, Blank, Question } from '../../shared/types';
 import { normalize } from '../../shared/judge';
+import { splitLines, splitParagraphs, splitStem } from '../../shared/stem';
 import { md } from '../md';
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
 function accepted(b: Blank): string[] {
   return [b.answer, ...(b.alt ?? [])];
 }
+
 
 export function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -58,42 +60,77 @@ export function FillView({ q, answer, onSave, onCommit, commitLabel, judgedOverr
     else commit();
   };
 
-  const parts = q.stem.split(/(____\d+____)/);
+  /** 一个空：输入框 + 判定标记 */
+  const renderBlank = (bi: number, key: string) => {
+    const b = blanks[bi];
+    const ok = judged && b ? accepted(b).some((c) => normalize(c) === normalize(vals[bi] ?? '')) : false;
+    return (
+      <span key={key} className="blank-wrap">
+        <input
+          className="blank-input"
+          type="text"
+          value={vals[bi] ?? ''}
+          disabled={judged}
+          placeholder={`空${bi + 1}`}
+          onChange={(e) => {
+            const v = e.target.value;
+            setVals((old) => old.map((x, j) => (j === bi ? v : x)));
+            setDirty(true);
+          }}
+          onBlur={() => {
+            if (dirty) commit();
+          }}
+        />
+        {judged && b && (
+          <span className={`blank-mark ${ok ? 'ok' : 'bad'}`}>
+            {ok ? '✓' : `✗ 参考：${accepted(b).join(' / ')}`}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  /** 一行文本：按 ____N____ 拆开，文本片走行内 markdown，占位片插输入框 */
+  const renderLine = (line: string, key: string) => (
+    <span key={key}>
+      {line.split(/(____\d+____)/).map((p, i) => {
+        const m = /^____(\d+)____$/.exec(p);
+        if (!m) return <span key={i} dangerouslySetInnerHTML={{ __html: md.renderInline(p) }} />;
+        return renderBlank(Number(m[1]) - 1, `b${i}`);
+      })}
+    </span>
+  );
 
   return (
     <div>
       <div className="stem fill-stem">
-        {parts.map((p, i) => {
-          const m = /^____(\d+)____$/.exec(p);
-          if (!m) return <span key={i} dangerouslySetInnerHTML={{ __html: md.renderInline(p) }} />;
-          const bi = Number(m[1]) - 1;
-          const b = blanks[bi];
-          const ok =
-            judged && b ? accepted(b).some((c) => normalize(c) === normalize(vals[bi] ?? '')) : false;
-          return (
-            <span key={i} className="blank-wrap">
-              <input
-                className="blank-input"
-                type="text"
-                value={vals[bi] ?? ''}
-                disabled={judged}
-                placeholder={`空${bi + 1}`}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setVals((old) => old.map((x, j) => (j === bi ? v : x)));
-                  setDirty(true);
-                }}
-                onBlur={() => {
-                  if (dirty) commit();
-                }}
+        {splitStem(q.stem).map((chunk, ci) => {
+          // 代码块：按 markdown 块渲染，保留换行 + 语法高亮
+          if (chunk.type === 'code') {
+            const fence = '```' + chunk.lang + '\n' + chunk.text + '\n```';
+            return (
+              <div
+                key={`c${ci}`}
+                className="stem-code"
+                dangerouslySetInnerHTML={{ __html: md.render(fence) }}
               />
-              {judged && b && (
-                <span className={`blank-mark ${ok ? 'ok' : 'bad'}`}>
-                  {ok ? '✓' : `✗ 参考：${accepted(b).join(' / ')}`}
-                </span>
-              )}
-            </span>
-          );
+            );
+          }
+          // 文本块：按空行分段、段内按行渲染（行尾换行要保住，否则题干挤成一段）
+          const paras = splitParagraphs(chunk.text);
+          return paras.map((para, pi) => {
+            const lines = splitLines(para);
+            return (
+              <p key={`t${ci}-${pi}`} className="fill-para">
+                {lines.map((line, li) => (
+                  <span key={li}>
+                    {line.trim() === '' ? null : renderLine(line, `l${li}`)}
+                    {li < lines.length - 1 ? <br /> : null}
+                  </span>
+                ))}
+              </p>
+            );
+          });
         })}
       </div>
 

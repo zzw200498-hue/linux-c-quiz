@@ -251,6 +251,8 @@ export type WebToHost =
   | { type: 'saveWrongbookAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
   /** 错题本刷题：主观题自行打分（0-100），≥60 计一次连对，<60 打回待攻克 */
   | { type: 'selfGrade'; qid: string; score: number }
+  /** 错题本刷题：客观题自己判对错（答案写法多样时以自己对照参考答案的判断为准） */
+  | { type: 'selfJudge'; qid: string; pass: boolean }
   | { type: 'copyText'; text: string }
   | { type: 'openScratch'; qid: string; code: string }
   | { type: 'runTests'; qid: string; code: string }

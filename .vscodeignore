@@ -7,3 +7,4 @@ bank/**
 tsconfig.json
 **/*.map
 .gitignore
+dist/*.cjs

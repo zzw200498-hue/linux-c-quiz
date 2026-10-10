@@ -78,6 +78,30 @@ body {
 .wrongbook-bar .ok-text { color: var(--vscode-charts-green, #3fb950); font-weight: 600; }
 .wrongbook-bar .hint { opacity: 0.7; }
 
+/* ---------- 客观题自主判分 ---------- */
+.selfjudge {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px dashed var(--vscode-editorWidget-border, #555);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.06));
+}
+.selfjudge-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.selfjudge-title { font-size: 13px; font-weight: 600; }
+.chip.bad { color: var(--vscode-charts-red, #f85149); }
+.selfjudge-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.selfjudge-hint { margin-top: 8px; font-size: 12px; opacity: 0.75; line-height: 1.6; }
+
+/* ---------- 填空题题干（代码块要保住换行） ---------- */
+.fill-stem .fill-para { margin: 6px 0; }
+.fill-stem .stem-code { margin: 8px 0; }
+.fill-stem .stem-code pre.hljs { margin: 0; }
+
 /* ---------- 主观题自行打分 ---------- */
 .selfgrade {
   margin-top: 12px;
