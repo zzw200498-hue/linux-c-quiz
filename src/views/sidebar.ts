@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { Answer, PaperFile, PaperSummary, Question } from '../shared/types';
+import type { WrongbookKind } from '../shared/wrongbook';
 import { TYPE_LABEL } from '../shared/types';
 import {
   hasKnowledge,
@@ -29,24 +30,67 @@ export class QuestionNode {
   ) {}
 }
 
-export type TreeNode = PaperNode | QuestionNode;
+/** 错题本节点：kind=active 置顶（待攻克），kind=passed 置尾（已过关） */
+export class WrongbookNode {
+  constructor(
+    public kind: WrongbookKind,
+    public count: number,
+    public attempts: number,
+  ) {}
+}
+
+export type TreeNode = PaperNode | QuestionNode | WrongbookNode;
 
 export class PapersProvider implements vscode.TreeDataProvider<TreeNode> {
   private emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
   private state: Record<string, Record<string, Answer>> = {};
   private summaries: Record<string, PaperSummary> = {};
+  private wrongActive = 0;
+  private wrongPassed = 0;
 
   constructor(private store: Store) {}
 
   async refresh(): Promise<void> {
+    await this.store.syncWrongbook();
     const st = await this.store.loadState();
     this.state = st.papers;
     this.summaries = st.summaries;
+    this.wrongActive = Object.values(st.wrongbook).filter((e) => !e.passed).length;
+    this.wrongPassed = Object.values(st.wrongbook).filter((e) => e.passed).length;
     this.emitter.fire();
   }
 
   getTreeItem(el: TreeNode): vscode.TreeItem {
+    if (el instanceof WrongbookNode) {
+      const active = el.kind === 'active';
+      const label = active ? `错题本 · 待攻克（${el.count}）` : `已过关错题（${el.count}）`;
+      const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+      item.iconPath = new vscode.ThemeIcon(
+        active ? 'flame' : 'check',
+        new vscode.ThemeColor(active ? 'charts.red' : 'charts.green'),
+      );
+      item.description = active ? '随机刷题' : '连对 3 次';
+      item.tooltip = new vscode.MarkdownString(
+        [
+          active ? `**错题本 · 待攻克**` : `**已过关错题**`,
+          '',
+          active
+            ? `收录规则：客观题判错、主观题被批改判为「错」或「部分正确」的题都会进来。`
+            : `每题在错题本里连续答对 3 次即毕业，移到这里。`,
+          `当前 ${el.count} 题${el.attempts > 0 ? `，累计练习 ${el.attempts} 次` : ''}。`,
+          '',
+          active ? '点开按随机顺序刷题：客观题答完即判；主观题提交后需批改（导入批改结果后计入连对次数）。' : '点开可以继续抽查；一旦答错立刻退回「待攻克」并清零连对次数。',
+        ].join('\n'),
+      );
+      item.contextValue = active ? 'wrongbook-active' : 'wrongbook-passed';
+      item.command = {
+        command: active ? 'linux-c-quiz.openWrongbook' : 'linux-c-quiz.openWrongbookPassed',
+        title: active ? '打开错题本刷题' : '查看已过关错题',
+      };
+      return item;
+    }
+
     if (el instanceof PaperNode) {
       const answers = this.state[el.paper.file] ?? {};
       const total = el.paper.questions.length;
@@ -125,7 +169,17 @@ export class PapersProvider implements vscode.TreeDataProvider<TreeNode> {
   async getChildren(el?: TreeNode): Promise<TreeNode[]> {
     if (!el) {
       const papers = await this.store.listPapers();
-      return papers.map((p) => new PaperNode(p));
+      const st = await this.store.loadState();
+      const entries = Object.values(st.wrongbook);
+      const activeCount = entries.filter((e) => !e.passed).length;
+      const passedCount = entries.filter((e) => e.passed).length;
+      const activeTries = entries.filter((e) => !e.passed).reduce((s, e) => s + e.tries, 0);
+      // 待攻克置顶、已过关置尾
+      return [
+        new WrongbookNode('active', activeCount, activeTries),
+        ...papers.map((p) => new PaperNode(p)),
+        new WrongbookNode('passed', passedCount, 0),
+      ];
     }
     if (el instanceof PaperNode) {
       const answers = this.state[el.paper.file] ?? {};

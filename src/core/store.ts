@@ -9,8 +9,17 @@ import {
   type PaperFile,
   type PaperSummary,
   type QuizState,
+  type WrongbookEntry,
 } from '../shared/types';
 import { computeSummary } from '../shared/summary';
+import {
+  listWrongbook,
+  recordPractice,
+  settleGrades,
+  syncWrongbook as syncWrongbookPure,
+  wrongKey,
+  type WrongbookKind,
+} from '../shared/wrongbook';
 
 export class Store {
   constructor(private ctx: vscode.ExtensionContext) {}
@@ -178,7 +187,11 @@ export class Store {
         grade: g,
       });
     }
-    if (hit > 0) await this.refreshSummaryInState(paper, st, paperFile, overall);
+    if (hit > 0) {
+      await this.refreshSummaryInState(paper, st, paperFile, overall);
+      // 主观题若在错题本里练过，批改结果决定连对次数 +1 或清零
+      st.wrongbook = settleGrades(st.wrongbook, paperFile, grades);
+    }
     await this.saveState(st);
     return hit;
   }
@@ -210,5 +223,69 @@ export class Store {
   async getSummary(paperFile: string): Promise<PaperSummary | null> {
     const st = await this.loadState();
     return st.summaries[paperFile] ?? null;
+  }
+
+  /* ---------- 错题本 ---------- */
+
+  /** 按当前作答判定同步错题本（收录新错题 / 过关后又错则回炉），有变化才落盘 */
+  async syncWrongbook(): Promise<{ added: number; recycled: number }> {
+    const st = await this.loadState();
+    const { next, added, recycled } = syncWrongbookPure(st.wrongbook, st.papers);
+    if (added > 0 || recycled > 0) {
+      st.wrongbook = next;
+      await this.saveState(st);
+    }
+    return { added, recycled };
+  }
+
+  /** 错题本内练习一次：ok=true 连对+1（达标过关）、false 清零、null 主观题待批改 */
+  async recordWrongbookPractice(
+    paperFile: string,
+    qid: string,
+    ok: boolean | null,
+  ): Promise<WrongbookEntry | null> {
+    const st = await this.loadState();
+    const k = wrongKey(paperFile, qid);
+    if (!st.wrongbook[k]) {
+      // 练习时若条目不存在（例如手动加入的场景）先补一个
+      st.wrongbook = syncWrongbookPure(st.wrongbook, st.papers).next;
+      if (!st.wrongbook[k]) {
+        st.wrongbook[k] = {
+          paper: paperFile,
+          qid,
+          streak: 0,
+          passed: false,
+          tries: 0,
+          awaitingGrade: false,
+          graduatedAt: 0,
+          ts: Date.now(),
+          source: 'auto',
+        };
+      }
+    }
+    const before = st.wrongbook[k];
+    st.wrongbook = recordPractice(st.wrongbook, paperFile, qid, ok);
+    await this.saveState(st);
+    const after = st.wrongbook[k];
+    return { ...after, passed: after.passed && !before.passed ? true : after.passed };
+  }
+
+  /** 批改导入后结算主观题练习的连对次数 */
+  async settleWrongbookGrades(
+    paperFile: string,
+    grades: Record<string, { verdict: 'correct' | 'partial' | 'wrong' }>,
+  ): Promise<void> {
+    const st = await this.loadState();
+    const next = settleGrades(st.wrongbook, paperFile, grades);
+    if (next !== st.wrongbook) {
+      st.wrongbook = next;
+      await this.saveState(st);
+    }
+  }
+
+  /** 取某组错题条目（待攻克 / 已过关） */
+  async wrongbookEntries(kind: WrongbookKind): Promise<WrongbookEntry[]> {
+    const st = await this.loadState();
+    return listWrongbook(st.wrongbook, kind);
   }
 }

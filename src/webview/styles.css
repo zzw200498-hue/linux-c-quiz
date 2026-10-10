@@ -52,6 +52,32 @@ body {
   line-height: 1.6;
 }
 
+/* ---------- 错题本刷题条 ---------- */
+.wrongbook-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--vscode-editorWidget-border, #444);
+  border-left: 3px solid var(--vscode-charts-red, #f85149);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, rgba(128,128,128,0.08));
+  font-size: 12.5px;
+}
+.wrongbook-bar.ok { border-left-color: var(--vscode-charts-green, #3fb950); }
+.wrongbook-bar .streak b { font-size: 15px; }
+.wrongbook-bar .streak-dots { display: inline-flex; gap: 4px; }
+.wrongbook-bar .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--vscode-editorWidget-border, #555);
+  display: inline-block;
+}
+.wrongbook-bar .dot.on { background: var(--vscode-charts-green, #3fb950); }
+.wrongbook-bar .ok-text { color: var(--vscode-charts-green, #3fb950); font-weight: 600; }
+.wrongbook-bar .hint { opacity: 0.7; }
+
 /* ---------- 整卷成绩单 ---------- */
 .reportcard {
   margin-top: 10px;

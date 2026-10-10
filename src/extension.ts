@@ -251,6 +251,16 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     }),
 
+    vscode.commands.registerCommand('linux-c-quiz.openWrongbook', async () => {
+      if (!requireWs()) return;
+      await QuizPanel.showWrongbook(context, store, provider, 'active');
+    }),
+
+    vscode.commands.registerCommand('linux-c-quiz.openWrongbookPassed', async () => {
+      if (!requireWs()) return;
+      await QuizPanel.showWrongbook(context, store, provider, 'passed');
+    }),
+
     vscode.commands.registerCommand('linux-c-quiz.openPaper', async (arg?: unknown) => {
       const target = resolvePaperFile(arg) ?? (await pickPaper(store));
       if (!target) return;

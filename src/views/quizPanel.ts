@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import type { HostToWeb, PaperFile, WebToHost } from '../shared/types';
+import type { Answer, HostToWeb, PaperFile, Question, WebToHost } from '../shared/types';
 import type { Store } from '../core/store';
+import { shuffle } from '../shared/wrongbook';
 import { ScratchManager } from '../core/scratch';
 import { runQuestionTests } from '../core/tester';
 import { createRunner, readRunnerConfig } from '../runner';
@@ -12,9 +13,76 @@ export class QuizPanel {
   private static paper?: PaperFile;
   private static bound = false;
   private static scratch?: ScratchManager;
+  /** 错题本模式：qid → 来源试卷文件名 */
+  private static wrongbookSource?: Record<string, string>;
+  private static wrongbookKind?: 'active' | 'passed';
 
   static get currentPaperFile(): string | undefined {
-    return this.paper?.file;
+    // 错题本模式下没有单一来源卷，返回 undefined（导入批改等命令会退回让用户选卷）
+    return this.wrongbookSource ? undefined : this.paper?.file;
+  }
+
+  /** 错题本题目所属的原卷（用于 scratch / 作答回写） */
+  private static sourcePaperOf(qid: string): string | undefined {
+    return this.wrongbookSource?.[qid] ?? this.paper?.file;
+  }
+
+  /** 打开错题本刷题：跨卷抽题 + 随机顺序 */
+  static async showWrongbook(
+    ctx: vscode.ExtensionContext,
+    store: Store,
+    provider: PapersProvider,
+    kind: 'active' | 'passed',
+  ): Promise<void> {
+    await store.syncWrongbook();
+    const entries = await store.wrongbookEntries(kind);
+    if (entries.length === 0) {
+      void vscode.window.showInformationMessage(
+        kind === 'active'
+          ? '错题本是空的：还没有判错的题。先做卷子（交卷判定 / 导入批改）就会自动收录错题。'
+          : '还没有过关的题：在错题本里连续答对 3 次即毕业。',
+      );
+      return;
+    }
+
+    const items: { paperFile: string; q: Question }[] = [];
+    const cache = new Map<string, PaperFile>();
+    for (const e of entries) {
+      let p = cache.get(e.paper);
+      if (!p) {
+        const loaded = await store.loadPaper(e.paper);
+        if (!loaded) continue;
+        p = loaded;
+        cache.set(e.paper, p);
+      }
+      const q = p.questions.find((x) => x.id === e.qid);
+      if (q) items.push({ paperFile: e.paper, q });
+    }
+    if (items.length === 0) {
+      void vscode.window.showWarningMessage('错题对应的题目在题库里找不到了（试卷可能被删掉或改过）。');
+      return;
+    }
+
+    shuffle(items);
+    const progress: Record<string, { streak: number; passed: boolean; tries: number }> = {};
+    for (const e of entries) {
+      progress[e.qid] = { streak: e.streak, passed: e.passed, tries: e.tries };
+    }
+
+    const paper: PaperFile = {
+      file: `wrongbook:${kind}`,
+      paper: {
+        title:
+          kind === 'active'
+            ? `错题本 · 待攻克（${items.length} 题 · 随机顺序）`
+            : `已过关错题（${items.length} 题）`,
+        topics: [],
+      },
+      questions: items.map((i) => i.q),
+    };
+    this.wrongbookSource = Object.fromEntries(items.map((i) => [i.q, i.paperFile]));
+    this.wrongbookKind = kind;
+    this.show(ctx, store, provider, paper);
   }
 
   static show(
@@ -25,6 +93,11 @@ export class QuizPanel {
     startQid?: string,
   ): void {
     this.paper = paper;
+    // 打开普通卷时清掉错题本上下文（showWrongbook 会先设好再调 show）
+    if (!paper.file.startsWith('wrongbook:')) {
+      this.wrongbookSource = undefined;
+      this.wrongbookKind = undefined;
+    }
     this.scratch ??= new ScratchManager(store);
 
     if (!this.panel) {
@@ -52,6 +125,27 @@ export class QuizPanel {
   private static async postInit(store: Store, startQid: string | null): Promise<void> {
     if (!this.panel || !this.paper) return;
     const st = await store.loadState();
+    const wrong = this.wrongbookSource;
+    const answers: Record<string, Answer> = {};
+    if (wrong) {
+      // 错题本：答案分散在各来源卷里
+      for (const q of this.paper.questions) {
+        const src = wrong[q.id];
+        const a = src ? st.papers[src]?.[q.id] : undefined;
+        if (a) answers[q.id] = a;
+      }
+    } else {
+      Object.assign(answers, st.papers[this.paper.file] ?? {});
+    }
+    const progress: Record<string, { streak: number; passed: boolean; tries: number }> = {};
+    if (wrong) {
+      for (const q of this.paper.questions) {
+        const src = wrong[q.id];
+        if (!src) continue;
+        const e = st.wrongbook[`${src}#${q.id}`];
+        if (e) progress[q.id] = { streak: e.streak, passed: e.passed, tries: e.tries };
+      }
+    }
     this.post({
       type: 'init',
       data: {
@@ -59,8 +153,11 @@ export class QuizPanel {
         paperFile: this.paper.file,
         questions: this.paper.questions,
         startQid,
-        answers: st.papers[this.paper.file] ?? {},
-        summary: st.summaries[this.paper.file] ?? null,
+        answers,
+        summary: wrong ? null : (st.summaries[this.paper.file] ?? null),
+        ...(wrong
+          ? { wrongbook: { kind: this.wrongbookKind ?? 'active', source: wrong, progress } }
+          : {}),
       },
     });
   }
@@ -87,7 +184,7 @@ export class QuizPanel {
         if (!meta) return;
         const code = doc.getText();
         await store.saveAnswer(meta.paperFile, meta.qid, { value: code, correct: null });
-        if (this.paper?.file === meta.paperFile) {
+        if (this.sourcePaperOf(meta.qid) === meta.paperFile) {
           this.post({ type: 'scratchSaved', qid: meta.qid, code });
         }
         await provider.refresh();
@@ -101,13 +198,32 @@ export class QuizPanel {
           break;
         case 'saveAnswer':
           if (this.paper) {
-            await store.saveAnswer(this.paper.file, msg.qid, {
+            await store.saveAnswer(this.sourcePaperOf(msg.qid) ?? this.paper.file, msg.qid, {
               value: msg.value,
               correct: msg.correct,
             });
             await provider.refresh();
           }
           break;
+        case 'saveWrongbookAnswer': {
+          const src = this.sourcePaperOf(msg.qid);
+          if (!src) break;
+          await store.saveAnswer(src, msg.qid, { value: msg.value, correct: msg.correct });
+          const before = await store.wrongbookEntries(this.wrongbookKind ?? 'active');
+          const wasPassed = before.find((e) => e.paper === src && e.qid === msg.qid)?.passed ?? false;
+          const entry = await store.recordWrongbookPractice(src, msg.qid, msg.correct);
+          await provider.refresh();
+          if (entry) {
+            this.post({
+              type: 'wrongbookProgress',
+              qid: msg.qid,
+              streak: entry.streak,
+              passed: entry.passed,
+              graduated: entry.passed && !wasPassed,
+            });
+          }
+          break;
+        }
         case 'copyText':
           await vscode.env.clipboard.writeText(msg.text);
           void vscode.window.showInformationMessage('已复制到剪贴板。');
@@ -139,7 +255,9 @@ export class QuizPanel {
     const paper = this.paper;
     const q = paper?.questions.find((x) => x.id === qid);
     // 传入 Webview 当前作答内容：简答/改写题首次打开时据此猜测入口文件类型（Makefile / main.c / answer.txt）
-    const info = paper && q ? this.scratch?.ensure(paper.file, q, webCode) : undefined;
+    // 错题本模式下题目来自别的卷，scratch 目录要挂到原卷名下
+    const owner = q ? (this.sourcePaperOf(q.id) ?? paper?.file) : undefined;
+    const info = paper && q && owner ? this.scratch?.ensure(owner, q, webCode) : undefined;
     if (!paper || !q || !info) {
       void vscode.window.showErrorMessage('请先在工作区中打开试卷。');
       return;
@@ -150,7 +268,7 @@ export class QuizPanel {
     if (!doc && typeof webCode === 'string' && webCode.trim() && webCode !== disk) {
       // 用户在 Webview 里写了代码但还没进编辑器 → 以 Webview 内容为准
       fs.writeFileSync(info.entryPath, webCode, 'utf8');
-      await store.saveAnswer(paper.file, qid, { value: webCode, correct: null });
+      await store.saveAnswer(owner ?? paper.file, qid, { value: webCode, correct: null });
       await provider.refresh();
     }
 
@@ -169,7 +287,8 @@ export class QuizPanel {
   ): Promise<void> {
     const paper = this.paper;
     const q = paper?.questions.find((x) => x.id === qid);
-    const info = paper && q ? this.scratch?.ensure(paper.file, q) : undefined;
+    const owner = q ? (this.sourcePaperOf(q.id) ?? paper?.file) : undefined;
+    const info = paper && q && owner ? this.scratch?.ensure(owner, q) : undefined;
     if (!paper || !q || !info) return;
 
     // 代码来源优先级：已打开的编辑器（含未保存修改）> Webview 里的新内容 > 磁盘
@@ -195,7 +314,7 @@ export class QuizPanel {
       timeoutMs: cfg.timeoutMs,
     });
 
-    await store.saveAnswer(paper.file, qid, {
+    await store.saveAnswer(owner ?? paper.file, qid, {
       value: code,
       correct: null,
       lastRun: { passed: summary.passed, total: summary.total, ts: Date.now() },

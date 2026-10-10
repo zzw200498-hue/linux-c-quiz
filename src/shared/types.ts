@@ -130,16 +130,37 @@ export const paperSummarySchema = z.object({
   ts: z.number().default(0),
 });
 
+/** 错题本条目：key = `试卷文件名#题目id` */
+export const wrongbookEntrySchema = z.object({
+  paper: z.string(),
+  qid: z.string(),
+  /** 连续答对次数（答错清零） */
+  streak: z.number().default(0),
+  /** 是否已过关（连对 3 次后移入「已过关」组） */
+  passed: z.boolean().default(false),
+  /** 在错题本里练过的次数 */
+  tries: z.number().default(0),
+  /** 主观题已练、等批改导入后结算 */
+  awaitingGrade: z.boolean().default(false),
+  /** 过关时间；用于判断过关后又被判错要回炉 */
+  graduatedAt: z.number().default(0),
+  ts: z.number().default(0),
+  source: z.enum(['auto', 'manual']).default('auto'),
+});
+
 export const stateSchema = z.object({
   /** papers[试卷文件名][题目id] = 作答 */
   papers: z.record(z.string(), z.record(z.string(), answerSchema)).default({}),
   /** summaries[试卷文件名] = 整卷成绩单 */
   summaries: z.record(z.string(), paperSummarySchema).default({}),
+  /** wrongbook[`试卷#题id`] = 错题本条目 */
+  wrongbook: z.record(z.string(), wrongbookEntrySchema).default({}),
 });
 
 export type Grade = z.infer<typeof gradeSchema>;
 export type Answer = z.infer<typeof answerSchema>;
 export type PaperSummary = z.infer<typeof paperSummarySchema>;
+export type WrongbookEntry = z.infer<typeof wrongbookEntrySchema>;
 export type QuizState = z.infer<typeof stateSchema>;
 
 /* ---------------- Runner：编译运行 ---------------- */
@@ -191,6 +212,15 @@ export type RunSummary = {
 
 /* ---------------- 宿主 <-> Webview 消息 ---------------- */
 
+/** 错题本刷题模式的附加信息（题目来自多张卷） */
+export type WrongbookInit = {
+  kind: 'active' | 'passed';
+  /** qid → 来源试卷文件名（作答写回原卷） */
+  source: Record<string, string>;
+  /** qid → 连对进度 */
+  progress: Record<string, { streak: number; passed: boolean; tries: number }>;
+};
+
 export type InitData = {
   paperTitle: string;
   paperFile: string;
@@ -198,6 +228,8 @@ export type InitData = {
   startQid: string | null;
   answers: Record<string, Answer>;
   summary: PaperSummary | null;
+  /** 非空表示当前是错题本刷题模式 */
+  wrongbook?: WrongbookInit;
 };
 
 export type HostToWeb =
@@ -205,11 +237,14 @@ export type HostToWeb =
   | { type: 'answersReplaced'; answers: Record<string, Answer> }
   | { type: 'runResults'; qid: string; data: RunSummary }
   | { type: 'scratchSaved'; qid: string; code: string }
-  | { type: 'summaryUpdated'; data: PaperSummary };
+  | { type: 'summaryUpdated'; data: PaperSummary }
+  | { type: 'wrongbookProgress'; qid: string; streak: number; passed: boolean; graduated: boolean };
 
 export type WebToHost =
   | { type: 'ready' }
   | { type: 'saveAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
+  /** 错题本刷题：correct 为 null 表示主观题，等批改后结算连对次数 */
+  | { type: 'saveWrongbookAnswer'; qid: string; value: string | string[] | null; correct: boolean | null }
   | { type: 'copyText'; text: string }
   | { type: 'openScratch'; qid: string; code: string }
   | { type: 'runTests'; qid: string; code: string }

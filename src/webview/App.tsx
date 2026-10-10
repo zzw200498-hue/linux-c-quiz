@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Answer, HostToWeb, InitData, PaperSummary, Question, WebToHost } from '../shared/types';
 import { TYPE_LABEL } from '../shared/types';
 import { autoOverallText } from '../shared/summary';
+import { WRONG_STREAK_TARGET } from '../shared/wrongbook';
 import { judge, isObjective } from '../shared/judge';
 import { md } from './md';
 import { post } from './vscode';
@@ -16,6 +17,8 @@ export function App() {
   const [idx, setIdx] = useState(0);
   const [summary, setSummary] = useState<{ right: number; total: number } | null>(null);
   const [report, setReport] = useState<PaperSummary | null>(null);
+  const [streaks, setStreaks] = useState<Record<string, { streak: number; passed: boolean }>>({});
+  const [graduated, setGraduated] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: MessageEvent<HostToWeb>) => {
@@ -25,10 +28,15 @@ export function App() {
         setAnswers(m.data.answers ?? {});
         setSummary(null);
         setReport(m.data.summary);
+        setStreaks(m.data.wrongbook?.progress ?? {});
+        setGraduated(null);
         const i = m.data.questions.findIndex((q) => q.id === m.data.startQid);
         setIdx(i >= 0 ? i : 0);
       } else if (m.type === 'summaryUpdated') {
         setReport(m.data);
+      } else if (m.type === 'wrongbookProgress') {
+        setStreaks((prev) => ({ ...prev, [m.qid]: { streak: m.streak, passed: m.passed } }));
+        if (m.graduated) setGraduated(m.qid);
       }
     };
     window.addEventListener('message', handler);
@@ -40,6 +48,16 @@ export function App() {
     setAnswers((prev) => ({ ...prev, [qid]: { ...prev[qid], value, correct, ts: Date.now() } }));
     post({ type: 'saveAnswer', qid, value, correct } satisfies WebToHost);
   }, []);
+
+  /** 错题本刷题：客观题答完立即判定并计入连对次数；主观题标记待批改 */
+  const saveWrongbook = useCallback(
+    (qid: string, value: string | string[] | null, correct: boolean | null) => {
+      setAnswers((prev) => ({ ...prev, [qid]: { ...prev[qid], value, correct, ts: Date.now() } }));
+      post({ type: 'saveWrongbookAnswer', qid, value, correct } satisfies WebToHost);
+      if (correct === false) setStreaks((prev) => ({ ...prev, [qid]: { streak: 0, passed: false } }));
+    },
+    [],
+  );
 
   /** 整卷做完后统一判定客观题（不做一题判一题） */
   const submitPaper = useCallback(() => {
@@ -99,6 +117,16 @@ export function App() {
   }).length;
   const paperJudged = data.questions.some((x) => isObjective(x) && answers[x.id]?.correct != null);
   const judged = isObjective(q) && a?.correct != null;
+  const wrong = data.wrongbook;
+  const streak = streaks[q.id]?.streak ?? 0;
+  const passed = streaks[q.id]?.passed ?? false;
+
+  /** 错题本：客观题即时判定计连对；主观题存为待批改，导入批改后结算 */
+  const onSave = (v: string | string[] | null, _c: boolean | null) => {
+    if (!wrong) return save(q.id, v, _c);
+    if (isObjective(q)) return saveWrongbook(q.id, v, judge(q, v) === true);
+    return saveWrongbook(q.id, v, null);
+  };
 
   return (
     <div className="quiz">
@@ -110,21 +138,47 @@ export function App() {
           </span>
         </div>
         <div className="head-actions">
-          {!paperJudged && (
+          {!wrong && !paperJudged && (
             <button className="btn primary" onClick={submitPaper}>
               交卷 · 判定客观题
             </button>
           )}
-          {paperJudged && (
+          {!wrong && paperJudged && (
             <button className="btn ghost" onClick={clearJudgement}>
               清除判定
             </button>
           )}
           <button className="btn ghost" onClick={copyAll}>
-            复制全部作答
+            {wrong ? '复制本次作答（交给批改）' : '复制全部作答'}
           </button>
         </div>
       </header>
+
+      {wrong && (
+        <div className={`wrongbook-bar ${passed ? 'ok' : ''}`}>
+          <span className="chip type">{wrong.kind === 'active' ? '错题本 · 待攻克' : '已过关错题'}</span>
+          <span className="streak">
+            连对 <b>{streak}</b> / {WRONG_STREAK_TARGET}
+          </span>
+          <span className="streak-dots">
+            {Array.from({ length: WRONG_STREAK_TARGET }, (_, i) => (
+              <span key={i} className={`dot ${i < streak ? 'on' : ''}`} />
+            ))}
+          </span>
+          {passed && <span className="ok-text">已过关</span>}
+          <span className="hint">
+            {isObjective(q)
+              ? '客观题：答完立即判定，答错清零'
+              : '主观题：提交后需批改，导入批改结果后计入连对次数'}
+          </span>
+        </div>
+      )}
+
+      {graduated === q.id && (
+        <div className="summary">
+          🎉 本题已连续答对 {WRONG_STREAK_TARGET} 次，移出待攻克、进入「已过关错题」。
+        </div>
+      )}
 
       {summary && (
         <div className="summary">
@@ -178,13 +232,13 @@ export function App() {
       {q.type !== 'fill' && <div className="stem" dangerouslySetInnerHTML={{ __html: md.render(q.stem) }} />}
 
       {q.type === 'single' || q.type === 'multi' ? (
-        <ChoiceView q={q} answer={a} onSave={(v, c) => save(q.id, v, c)} />
+        <ChoiceView q={q} answer={a} onSave={onSave} />
       ) : q.type === 'fill' ? (
-        <FillView q={q} answer={a} onSave={(v, c) => save(q.id, v, c)} />
+        <FillView q={q} answer={a} onSave={onSave} />
       ) : q.type === 'coding' ? (
-        <CodingView q={q} answer={a} onSave={(v, c) => save(q.id, v, c)} />
+        <CodingView q={q} answer={a} onSave={onSave} />
       ) : (
-        <SubjectiveView q={q} answer={a} onSave={(v, c) => save(q.id, v, c)} />
+        <SubjectiveView q={q} answer={a} onSave={onSave} />
       )}
 
       {judged && q.explain && (

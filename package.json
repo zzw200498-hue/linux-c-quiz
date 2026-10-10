@@ -2,7 +2,7 @@
   "name": "linux-c-quiz",
   "displayName": "Linux C Quiz 刷题工作台",
   "description": "把 LLM 出的题目录入并在 VSCode 里作答的 Linux/嵌入式 C 刷题工作台：选择、填空、简答、代码改写、编程题，支持作答持久化与错题导出批改闭环。",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "local-dev",
   "categories": [
     "Education",
@@ -49,6 +49,16 @@
       {
         "command": "linux-c-quiz.openPaper",
         "title": "打开试卷",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.openWrongbook",
+        "title": "打开错题本（随机刷题）",
+        "category": "Quiz"
+      },
+      {
+        "command": "linux-c-quiz.openWrongbookPassed",
+        "title": "查看已过关错题",
         "category": "Quiz"
       },
       {
