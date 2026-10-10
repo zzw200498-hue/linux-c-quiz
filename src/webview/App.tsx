@@ -3,7 +3,7 @@ import type { Answer, HostToWeb, InitData, PaperSummary, Question, WebToHost } f
 import { TYPE_LABEL } from '../shared/types';
 import { autoOverallText } from '../shared/summary';
 import { WRONG_STREAK_TARGET } from '../shared/wrongbook';
-import { judge, isObjective } from '../shared/judge';
+import { isEmptyAnswer, judge, isObjective } from '../shared/judge';
 import { md } from './md';
 import { post } from './vscode';
 import { ChoiceView } from './components/ChoiceView';
@@ -20,6 +20,8 @@ export function App() {
   const [report, setReport] = useState<PaperSummary | null>(null);
   const [streaks, setStreaks] = useState<Record<string, { streak: number; passed: boolean }>>({});
   const [graduated, setGraduated] = useState<string | null>(null);
+  /** 错题本刷题：本次会话里已点「提交并判定」的题（判定前不显示对错、不锁定选项） */
+  const [committed, setCommitted] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const handler = (e: MessageEvent<HostToWeb>) => {
@@ -30,6 +32,7 @@ export function App() {
         setSummary(null);
         setReport(m.data.summary);
         setStreaks(m.data.wrongbook?.progress ?? {});
+        setCommitted({});
         setGraduated(null);
         const i = m.data.questions.findIndex((q) => q.id === m.data.startQid);
         setIdx(i >= 0 ? i : 0);
@@ -133,16 +136,34 @@ export function App() {
     return v != null && (Array.isArray(v) ? v.length > 0 : v !== '');
   }).length;
   const paperJudged = data.questions.some((x) => isObjective(x) && answers[x.id]?.correct != null);
-  const judged = isObjective(q) && a?.correct != null;
   const wrong = data.wrongbook;
   const streak = streaks[q.id]?.streak ?? 0;
   const passed = streaks[q.id]?.passed ?? false;
+  // 错题本刷题：判定状态只看本次会话是否提交过（不沿用原卷判定，避免一打开就锁定 + 剧透）
+  const judged = wrong ? (committed[q.id] ?? false) : isObjective(q) && a?.correct != null;
+
+  /**
+   * 错题本：客观题只有点「提交并判定」才结算连对。
+   * 点选项 / 输入过程只保存作答——否则多选点第一个选项、填空填第一空时答案还不完整，会被误判为错。
+   */
+  const commitObjective = (v: string | string[] | null) => {
+    if (!wrong) return;
+    if (isEmptyAnswer(v)) return; // 空答案不结算（防「重做本题」被当成答错）
+    setCommitted((prev) => ({ ...prev, [q.id]: true }));
+    saveWrongbook(q.id, v, judge(q, v) === true);
+  };
 
   /** 错题本：客观题即时判定计连对；主观题存为待批改，导入批改后结算 */
   const onSave = (v: string | string[] | null, _c: boolean | null) => {
     if (!wrong) return save(q.id, v, _c);
-    if (isObjective(q)) return saveWrongbook(q.id, v, judge(q, v) === true);
-    return saveWrongbook(q.id, v, null);
+    if (isEmptyAnswer(v)) {
+      // 清空 / 重做本题：只清作答并解锁，绝不结算（否则会被当成答错）
+      setCommitted((prev) => ({ ...prev, [q.id]: false }));
+      return save(q.id, v, null);
+    }
+    // 客观题作答过程：只更新作答内容，保留原卷判定不动（错题本的判定状态由 committed 单独管）
+    if (isObjective(q)) return save(q.id, v, a?.correct ?? null);
+    return saveWrongbook(q.id, v, null); // 主观题：标记待批改（或自评）
   };
 
   return (
@@ -185,7 +206,9 @@ export function App() {
           {passed && <span className="ok-text">已过关</span>}
           <span className="hint">
             {isObjective(q)
-              ? '客观题：答完立即判定，答错清零'
+              ? q.type === 'single'
+                ? '单选：点选即判定，答错清零'
+                : `${q.type === 'multi' ? '多选' : '填空'}：填/选完点「提交并判定」才计入连对`
               : `主观题：保存后可自行打分（≥60 记一次连对），也可导出交给 AI 批改`}
           </span>
         </div>
@@ -249,9 +272,31 @@ export function App() {
       {q.type !== 'fill' && <div className="stem" dangerouslySetInnerHTML={{ __html: md.render(q.stem) }} />}
 
       {q.type === 'single' || q.type === 'multi' ? (
-        <ChoiceView q={q} answer={a} onSave={onSave} />
+        <ChoiceView
+          q={q}
+          answer={a}
+          onSave={onSave}
+          {...(wrong
+            ? {
+                onCommit: commitObjective,
+                commitLabel: '提交并判定（计入连对）',
+                judgedOverride: committed[q.id] ?? false,
+              }
+            : {})}
+        />
       ) : q.type === 'fill' ? (
-        <FillView q={q} answer={a} onSave={onSave} />
+        <FillView
+          q={q}
+          answer={a}
+          onSave={onSave}
+          {...(wrong
+            ? {
+                onCommit: commitObjective,
+                commitLabel: '提交并判定（计入连对）',
+                judgedOverride: committed[q.id] ?? false,
+              }
+            : {})}
+        />
       ) : q.type === 'coding' ? (
         <CodingView q={q} answer={a} onSave={onSave} />
       ) : (

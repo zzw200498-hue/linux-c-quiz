@@ -2,7 +2,7 @@
   "name": "linux-c-quiz",
   "displayName": "Linux C Quiz 刷题工作台",
   "description": "把 LLM 出的题目录入并在 VSCode 里作答的 Linux/嵌入式 C 刷题工作台：选择、填空、简答、代码改写、编程题，支持作答持久化与错题导出批改闭环。",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "local-dev",
   "categories": [
     "Education",

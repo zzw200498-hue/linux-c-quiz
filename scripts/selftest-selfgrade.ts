@@ -3,6 +3,7 @@
  * 跑法：npm run build && npx esbuild scripts/selftest-selfgrade.ts --bundle --platform=node --format=cjs --outfile=dist/selftest-selfgrade.cjs && node dist/selftest-selfgrade.cjs
  */
 import { gradeSchema } from '../src/shared/types';
+import { isEmptyAnswer, judge } from '../src/shared/judge';
 import {
   PASS_SCORE,
   WRONG_STREAK_TARGET,
@@ -85,6 +86,19 @@ ok('source=self 保留', g.source === 'self');
 const g2 = gradeSchema.parse({ verdict: 'correct', score: 100 });
 ok('缺省 source=ai', g2.source === 'ai');
 ok('缺省字段补齐', g2.comment === '' && g2.missed_points.length === 0);
+
+console.log('[selfgrade] 5) 空作答不结算（错题本多选/填空误判回归）');
+ok('null 视为空', isEmptyAnswer(null));
+ok('空数组视为空', isEmptyAnswer([]));
+ok('全空白数组视为空', isEmptyAnswer(['', '  ']));
+ok('空串视为空', isEmptyAnswer('') && isEmptyAnswer('   '));
+ok('有内容不算空', !isEmptyAnswer(['A']) && !isEmptyAnswer(['', 'x']) && !isEmptyAnswer('B'));
+
+// 回归：多选题只点了第一个选项时 judge 必然判错，所以那一刀不能用来结算连对
+const multiQ = { id: 'm1', type: 'multi', stem: 's', answer: ['A', 'C'], tags: [], difficulty: 1 } as any;
+ok('多选只选 A（答案 AC）→ judge=false', judge(multiQ, ['A']) === false);
+ok('多选选 AC → judge=true', judge(multiQ, ['A', 'C']) === true);
+ok('多选空选 → judge=null（不该结算）', judge(multiQ, []) === null);
 
 console.log(fail === 0 ? '\n[selfgrade] 全部通过' : `\n[selfgrade] 失败 ${fail} 项`);
 process.exit(fail === 0 ? 0 : 1);

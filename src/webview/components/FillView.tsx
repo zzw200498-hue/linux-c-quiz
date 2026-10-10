@@ -6,7 +6,13 @@ import { md } from '../md';
 type Props = {
   q: Question;
   answer?: Answer;
+  /** 只保存作答，不做判定（输入框失焦时走这条） */
   onSave: (value: string | string[] | null, correct: boolean | null) => void;
+  /** 错题本/随机刷题模式：点「提交并判定」才调用，用于结算连对次数 */
+  onCommit?: (value: string | string[] | null) => void;
+  commitLabel?: string;
+  /** 是否显示「已判定」状态（覆盖 answer.correct）；错题本刷题传 false，避免沿用原卷判定、一打开就剧透 */
+  judgedOverride?: boolean;
 };
 
 function accepted(b: Blank): string[] {
@@ -18,8 +24,8 @@ export function fmtTime(ts: number): string {
 }
 
 /** 填空题：题干 ____N____ 处渲染行内输入框；离开输入框或点按钮即保存，交卷后显示对错 */
-export function FillView({ q, answer, onSave }: Props) {
-  const judged = answer?.correct != null;
+export function FillView({ q, answer, onSave, onCommit, commitLabel, judgedOverride }: Props) {
+  const judged = judgedOverride ?? (answer?.correct != null);
   const blanks = q.blanks ?? [];
   const [vals, setVals] = useState<string[]>(blanks.map(() => ''));
   const [dirty, setDirty] = useState(false);
@@ -33,12 +39,23 @@ export function FillView({ q, answer, onSave }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q.id]);
 
+  const clean = () => vals.map((v) => v.trim());
+
+  /** 失焦 / 保存按钮：只保存作答（多空填空题填第一空时不判定，否则必然判错） */
   const commit = () => {
-    const clean = vals.map((v) => v.trim());
-    if (clean.every((v) => !v)) return;
-    onSave(clean, null);
+    const c = clean();
+    if (c.every((v) => !v)) return;
+    onSave(c, null);
     setDirty(false);
     setSavedAt(Date.now());
+  };
+
+  /** 错题本模式：点「提交并判定」才结算连对 */
+  const submit = () => {
+    const c = clean();
+    if (c.every((v) => !v)) return;
+    if (onCommit) onCommit(c);
+    else commit();
   };
 
   const parts = q.stem.split(/(____\d+____)/);
@@ -83,8 +100,8 @@ export function FillView({ q, answer, onSave }: Props) {
       <div className="subj-actions">
         {!judged ? (
           <>
-            <button className="btn primary" disabled={vals.every((v) => !v.trim())} onClick={commit}>
-              {savedAt ? '更新答案' : '保存答案'}
+            <button className="btn primary" disabled={vals.every((v) => !v.trim())} onClick={submit}>
+              {commitLabel ?? (savedAt ? '更新答案' : '保存答案')}
             </button>
             {savedAt && !dirty && <span className="saved-hint ok">✓ 已保存 {fmtTime(savedAt)}</span>}
             {dirty && savedAt && <span className="saved-hint dirty">有未保存修改</span>}

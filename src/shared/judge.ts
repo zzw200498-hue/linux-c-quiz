@@ -45,3 +45,10 @@ export function judge(q: Question, value: string | string[] | null): boolean | n
 export function isObjective(q: Question): boolean {
   return q.type === 'single' || q.type === 'multi' || q.type === 'fill';
 }
+
+/** 作答是否为空（未选 / 未填）：空作答不该被判定，也不该计入错题本连对 */
+export function isEmptyAnswer(value: string | string[] | null | undefined): boolean {
+  if (value == null) return true;
+  if (Array.isArray(value)) return value.every((v) => !normalize(String(v ?? '')));
+  return normalize(value) === '';
+}
