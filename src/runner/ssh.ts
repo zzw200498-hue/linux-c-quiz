@@ -188,7 +188,7 @@ export class SshRunner implements Runner {
     const r = await capture([...this.argv(), 'echo', '$HOME'], { timeoutMs: 15000 });
     const home = r.stdout.trim().split('\n').pop()?.trim() ?? '';
     if (!home.startsWith('/')) {
-      throw new Error(`无法解析远端 HOME（得到 "${home}"），请把 quiz.remoteRoot 配成绝对路径（如 /home/daniya/quiz-run）。`);
+      throw new Error(`无法解析远端 HOME（得到 "${home}"），请把 quiz.remoteRoot 配成绝对路径（如 /home/你的用户名/quiz-run）。`);
     }
     this.homeCache = home;
     return home;

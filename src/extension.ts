@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (cfg.mode === 'ssh' && !cfg.sshHost) {
         const go = await vscode.window.showWarningMessage(
-          '已选择 ssh 模式，但没填 quiz.sshHost（形如 用户名@192.168.88.128）。',
+          '已选择 ssh 模式，但没填 quiz.sshHost（形如 用户名@主机IP，例如 ubuntu@192.168.1.100）。',
           '打开设置',
         );
         if (go === '打开设置') void vscode.commands.executeCommand('workbench.action.openSettings', 'quiz.sshHost');

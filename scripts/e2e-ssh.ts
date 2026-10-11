@@ -1,14 +1,16 @@
 /**
  * 真机端到端验证：Windows 本地 → VM（ssh）同步、编译、运行、比对、超时。
  * 用法：node dist/e2e-ssh.cjs [user@host]
+ * 不传 host 时按 QUIZ_SSH_HOST 环境变量、本机 .vscode/settings.json 依次兜底。
  */
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { SshRunner, resolveSshBin } from '../src/runner/ssh';
 import { normalizeOut } from '../src/core/tester';
+import { resolveSshHost } from './ssh-host';
 
-const host = process.argv[2] ?? 'daniya@192.168.88.128';
+const host = resolveSshHost(process.argv[2]);
 const remoteRoot = '~/.quiz-e2e';
 
 function mkScratch(name: string, files: Record<string, string>): string {

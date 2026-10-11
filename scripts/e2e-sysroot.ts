@@ -5,10 +5,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { syncSysroot, hasSysroot, sysrootIncludePaths } from '../src/core/sysroot';
+import { resolveSshHost } from './ssh-host';
 
 async function main() {
   const wsRoot = path.resolve(process.argv[2] ?? path.join(__dirname, '..', 'bank'));
-  const host = process.argv[3] ?? 'daniya@192.168.88.128';
+  const host = resolveSshHost(process.argv[3]);
   console.log(`工作区: ${wsRoot}`);
   console.log(`VM: ${host}\n`);
 

@@ -2,8 +2,9 @@
 import * as path from 'path';
 import { SshRunner } from '../src/runner/ssh';
 import { normalizeOut } from '../src/core/tester';
+import { resolveSshHost } from './ssh-host';
 
-const host = process.argv[2] ?? 'daniya@192.168.88.128';
+const host = resolveSshHost(process.argv[2]);
 const localDir = path.resolve(process.argv[3] ?? 'bank/.quiz/scratch/Linux嵌入式应用层-综合卷二（进程之前）/q24');
 
 async function main() {

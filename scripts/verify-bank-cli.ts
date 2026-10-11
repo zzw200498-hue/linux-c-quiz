@@ -6,10 +6,11 @@ import { paperSchema } from '../src/shared/types';
 import type { PaperFile } from '../src/shared/types';
 import { SshRunner } from '../src/runner/ssh';
 import { verifyPaperSolutions } from '../src/core/verify';
+import { resolveSshHost } from './ssh-host';
 
 async function main() {
   const bankDir = path.resolve(process.argv[2] ?? 'bank/bank');
-  const host = process.argv[3] ?? 'daniya@192.168.88.128';
+  const host = resolveSshHost(process.argv[3]);
   const keyword = process.argv[4] ?? '';
 
   const files = fs.readdirSync(bankDir).filter((f) => /\.ya?ml$/i.test(f) && f.includes(keyword));

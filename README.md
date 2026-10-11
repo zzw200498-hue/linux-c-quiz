@@ -37,7 +37,7 @@ code --install-extension linux-c-quiz-0.2.0.vsix
 | 取值 | 场景 | 说明 |
 |---|---|---|
 | `local`（默认） | **Remote-SSH 到 Ubuntu VM 时用** | 扩展跑在远端，直接 spawn `gcc`/`make` |
-| `ssh` | **VSCode 在 Windows 本地** | 每次运行把 scratch 目录同步到 VM 再 ssh 执行；需设置 `quiz.sshHost`（如 `daniya@192.168.88.128`，建议先配免密） |
+| `ssh` | **VSCode 在 Windows 本地** | 每次运行把 scratch 目录同步到 VM 再 ssh 执行；需设置 `quiz.sshHost`（如 `ubuntu@192.168.1.100`，换成你自己的用户名@VM的IP，建议先配免密） |
 | `off` | 只做题不运行 | 面板不出现运行结果 |
 
 其它相关配置：`quiz.cCompiler`（默认 `gcc`，以后交叉编译题改成 `arm-linux-gnueabihf-gcc`）、`quiz.runTimeoutSec`（单用例超时，默认 5s，超时强制 kill）、`quiz.remoteRoot`（ssh 模式远端根目录）、`quiz.sshPath`（ssh 可执行文件路径，留空自动选）。
@@ -49,7 +49,7 @@ code --install-extension linux-c-quiz-0.2.0.vsix
 ```jsonc
 {
   "quiz.runner": "ssh",
-  "quiz.sshHost": "daniya@192.168.88.128",   // 用户名@VM的IP
+  "quiz.sshHost": "ubuntu@192.168.1.100",   // 用户名@VM的IP（改成你自己的）
   "quiz.remoteRoot": "~/.quiz-runner",
   "quiz.cCompiler": "gcc",
   "quiz.runTimeoutSec": 5
