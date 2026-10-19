@@ -1,7 +1,15 @@
 node_modules/
 dist/
 .quiz/
+# 作答记录的自动备份（刻意放在 .quiz 外面，整目录被删也还在）
+.quiz-backups/
 *.vsix
 .workbuddy/
 bank/
 .vscode/settings.json
+
+# 桌面端构建产物
+desktop/dist/
+desktop/electron/app/
+desktop/electron/web/
+

@@ -1,0 +1,10 @@
+{
+  "name": "linux-c-quiz-desktop",
+  "productName": "Linux C 题库",
+  "version": "0.1.0",
+  "description": "Linux C 题库桌面端（Electron 壳 + 内置题库服务）",
+  "main": "main.cjs",
+  "author": "zzw",
+  "license": "MIT",
+  "private": true
+}

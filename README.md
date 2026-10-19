@@ -1,7 +1,11 @@
-# Linux C Quiz 刷题工作台（VSCode 扩展）
+# Linux C Quiz 刷题工作台（VSCode 扩展 + 桌面 App）
 
-把 DeepSeek 等 LLM 出的题目录入进来，在 VSCode 里作答的 Linux/嵌入式 C 刷题工作台。
+把 DeepSeek 等 LLM 出的题目录入进来，在 VSCode 里作答的 Linux/嵌入式 C 刷题工作台。  
 支持：单选 / 多选（含判断题）/ 填空 / 简答 / 代码改写 / 编程题，作答自动持久化，并带「导出作答 → LLM 批改 → 导入结果 → 错题追踪」闭环。
+
+> 同一套题库还有个**独立桌面 App**（Electron，双击 exe 就能用，不依赖 VSCode）：>   
+> `npm run desktop:package` 打包，默认输出到桌面。详见 [desktop/README.md](desktop/README.md)。>   
+> 两边读的是同一个题库目录和同一份作答状态，进度完全同步。
 
 ## 安装
 
@@ -9,14 +13,15 @@
 code --install-extension linux-c-quiz-0.2.0.vsix
 ```
 
-> **Remote-SSH 用户注意**：本扩展声明了 `extensionKind: workspace`，需安装到**远端**（Ubuntu VM）。
+> **Remote-SSH 用户注意**：本扩展声明了 `extensionKind: workspace`，需安装到**远端**（Ubuntu VM）。>   
 > 在 Remote-SSH 会话中，扩展面板里选择 `Install in SSH: <你的VM>`，或 ssh 进 VM 后直接执行上面命令。
 
 ## 使用流程
 
 1. **出题**：命令面板（`Ctrl+Shift+P`）→ `Quiz: 复制出题提示词` → 粘贴给 DeepSeek或任意免费AI（记得填主题）→ 把它输出的 yaml 代码块存成 `.yaml` 或 `.md` 文件。
-2. **导入**：侧栏「刷题」图标 → 顶部 ➕ → 选择刚才的文件 → 试卷出现在题库树中。
+2. **导入**：侧栏「刷题」图标 → 顶部 ➕ → 选择刚才的文件 → 试卷出现在题库树中。     
    *删除*：题库树里**右键试卷**（或悬停点垃圾桶图标）→「删除试卷」，题库文件会备份到 `.quiz/trash/`，可手动恢复；该卷作答记录一并清除。
+   > 桌面端更省事：试卷页 →「＋ 导入新卷」→ 把 AI 回复整段粘进去即可（不用先存文件），导入前会做格式 + 质量双校验。见 [desktop/README.md](desktop/README.md)。
 3. **做题**：点试卷或任意题号 → 主区打开答题面板。客观题点选/填空后只保存答案，整卷做完点「交卷 · 判定客观题」统一判分（可「清除判定」重刷）；简答/代码题保存后待批改。
 4. **批改闭环**：
    - `Quiz: 导出本卷作答` → 生成完整批改请求并**自动复制到剪贴板**（同时存到 `.quiz/export/`）；
@@ -34,11 +39,11 @@ code --install-extension linux-c-quiz-0.2.0.vsix
 
 **Runner 三档**（设置里 `quiz.runner`）：
 
-| 取值 | 场景 | 说明 |
-|---|---|---|
-| `local`（默认） | **Remote-SSH 到 Ubuntu VM 时用** | 扩展跑在远端，直接 spawn `gcc`/`make` |
-| `ssh` | **VSCode 在 Windows 本地** | 每次运行把 scratch 目录同步到 VM 再 ssh 执行；需设置 `quiz.sshHost`（如 `ubuntu@192.168.1.100`，换成你自己的用户名@VM的IP，建议先配免密） |
-| `off` | 只做题不运行 | 面板不出现运行结果 |
+| 取值          | 场景                            | 说明                                                                                                  |
+| ----------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `local`（默认） | **Remote-SSH 到 Ubuntu VM 时用** | 扩展跑在远端，直接 spawn `gcc`/`make`                                                                        |
+| `ssh`       | **VSCode 在 Windows 本地**       | 每次运行把 scratch 目录同步到 VM 再 ssh 执行；需设置 `quiz.sshHost`（如 `ubuntu@192.168.1.100`，换成你自己的用户名@VM的IP，建议先配免密） |
+| `off`       | 只做题不运行                        | 面板不出现运行结果                                                                                           |
 
 其它相关配置：`quiz.cCompiler`（默认 `gcc`，以后交叉编译题改成 `arm-linux-gnueabihf-gcc`）、`quiz.runTimeoutSec`（单用例超时，默认 5s，超时强制 kill）、`quiz.remoteRoot`（ssh 模式远端根目录）、`quiz.sshPath`（ssh 可执行文件路径，留空自动选）。
 
@@ -77,7 +82,8 @@ Windows 本地没有 Linux 头文件，编辑 `main.c` 时 `unistd.h` / `pthread
 > 几个已处理的 Windows 坑：不用 scp（盘符冒号会被当主机分隔符）、同步走 stdin 而非命令行（避开 8191 字符上限）、上传前把 CRLF 统一成 LF（否则本地编辑的 Makefile 在远端 make 报错）、强制使用 `C:\Windows\System32\OpenSSH\ssh.exe`（PATH 里靠前的 Git-Bash ssh 在中文用户名目录下读不到私钥）、退出码显式回传（否则段错误 139 会变成 0xFFFFFFFF）。
 
 **远程安装**：把 `.vsix` 装到 VM 里（二选一）：
-- Remote-SSH 会话中：扩展面板 → 找到 Linux C Quiz → **Install in SSH: \<你的VM\>**；
+
+- Remote-SSH 会话中：扩展面板 → 找到 Linux C Quiz → **Install in SSH: <你的VM>**；
 - 或 Remote-SSH 连接后的终端里：`code --install-extension /path/to/linux-c-quiz-0.2.0.vsix`。
 
 > 想要编辑器里的 C 补全/跳转，在远端装官方 **C/C++**（ms-vscode.cpptools）或 **clangd** 扩展即可。
@@ -85,26 +91,26 @@ Windows 本地没有 Linux 头文件，编辑 `main.c` 时 `unistd.h` / `pthread
 ## 复习（知识点速览）
 
 - **悬停即看**：题库树里把鼠标停在题目上，提示内容由「题干」替换为**知识点**——正确答案 / 各空答案、解析、参考答案、评分要点、我的作答、批改结果。默认只对**已作答**的题生效（未作答仍只显示题干），可用配置 `quiz.knowledgeTooltip` 调整：
-  | 取值 | 行为 |
-  |---|---|
-  | `answered`（默认） | 已作答的题显示知识点 |
-  | `judged` | 仅已判定 / 已批改的题显示（交卷前零剧透） |
-  | `always` | 所有题都显示 |
-  | `off` | 只显示题干 |
+  | 取值             | 行为                     |
+  | -------------- | ---------------------- |
+  | `answered`（默认） | 已作答的题显示知识点             |
+  | `judged`       | 仅已判定 / 已批改的题显示（交卷前零剧透） |
+  | `always`       | 所有题都显示                 |
+  | `off`          | 只显示题干                  |
 - **整卷速览**：右键试卷（或悬停点 👁 图标）→「生成知识点速览」→ 生成 `.quiz/review/<标题>-知识点.md` 并打开 Markdown 预览，按题列出 正确答案 / 解析 / 参考答案 / 我的作答 / 批改点评，适合整卷回顾或打印。
 
 ## 目录约定
 
-| 路径 | 说明 |
-|---|---|
-| `bank/*.yaml` | 题库（可用 `quiz.bankPath` 配置），一份文件 = 一张卷 |
-| `prompts/generate.md` | 出题提示词（工作区优先，扩展内置兜底） |
-| `prompts/review.md` | 批改提示词 |
-| `.quiz/state.json` | 作答/批改状态 |
-| `.quiz/scratch/<试卷>/<题号>/` | 编程题工作目录（真实编译运行发生地） |
-| `.quiz/export/*.md` | 批改请求存档 |
-| `.quiz/review/*.md` | 知识点速览（复习用） |
-| `.quiz/trash/` | 删除试卷的备份 |
+| 路径                         | 说明                                   |
+| -------------------------- | ------------------------------------ |
+| `bank/*.yaml`              | 题库（可用 `quiz.bankPath` 配置），一份文件 = 一张卷 |
+| `prompts/generate.md`      | 出题提示词（工作区优先，扩展内置兜底）                  |
+| `prompts/review.md`        | 批改提示词                                |
+| `.quiz/state.json`         | 作答/批改状态                              |
+| `.quiz/scratch/<试卷>/<题号>/` | 编程题工作目录（真实编译运行发生地）                   |
+| `.quiz/export/*.md`        | 批改请求存档                               |
+| `.quiz/review/*.md`        | 知识点速览（复习用）                           |
+| `.quiz/trash/`             | 删除试卷的备份                              |
 
 ## 开发
 

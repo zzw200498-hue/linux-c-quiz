@@ -263,7 +263,10 @@
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "package": "npm run build && npx @vscode/vsce package --no-dependencies"
+    "package": "npm run build && npx @vscode/vsce package --no-dependencies",
+    "desktop:build": "node desktop/build.mjs",
+    "desktop": "node desktop/build.mjs && node desktop/launch.mjs",
+    "desktop:package": "node desktop/package.cjs"
   },
   "dependencies": {
     "highlight.js": "^11.10.0",
@@ -282,7 +285,10 @@
     "@types/react-dom": "^18.3.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.1.0",
+    "electron": "^33.4.11",
+    "electron-packager": "^17.1.2",
     "esbuild": "^0.24.0",
+    "monaco-editor": "^0.52.2",
     "typescript": "^5.6.2"
   }
 }

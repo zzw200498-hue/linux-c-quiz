@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux C 题库 · 桌面端</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="traffic"><i id="tlClose" title="关闭"></i><i id="tlMin" title="最小化"></i><i id="tlMax" title="最大化"></i></div>
+    <div class="title" id="winTitle">Linux C 题库</div>
+    <div class="spacer"></div>
+    <div class="runner-badge" id="runnerBadge">● 正在连接…</div>
+  </div>
+
+  <div class="body">
+    <aside class="nav">
+      <div class="brand"><div class="dot">Q</div> Linux C 题库</div>
+
+      <div class="nav-item active" data-page="papers"><span class="ico">🗂️</span> 试卷</div>
+      <div class="nav-item" data-page="random"><span class="ico">🎲</span> 随机刷题 <span class="cnt" id="randomCnt">15</span></div>
+      <div class="nav-item" data-page="wrong"><span class="ico">📕</span> 错题本 <span class="cnt bad" id="wrongCnt">0</span></div>
+      <div class="nav-item" data-page="stats"><span class="ico">📊</span> 统计面板</div>
+
+      <div class="section">状态</div>
+      <div class="nav-item flat" id="statAcc">正确率 —</div>
+      <div class="nav-item flat" id="statPaper">题库 —</div>
+
+      <div class="nav-footer">
+        <div id="footInfo">加载中…</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- 试卷列表 -->
+      <section class="page show" id="page-papers">
+        <div class="page-head">
+          <div>
+            <div class="page-title">试卷</div>
+            <div class="page-sub">彩点 = 完成度（绿 ≥80% / 黄 60~79% / 红 &lt;60%）· 点击试卷进入做题</div>
+          </div>
+          <div class="head-actions">
+            <button class="btn ghost" id="btnCopyPrompt">📋 复制出题提示词</button>
+            <button class="btn primary" id="btnImport">＋ 导入新卷</button>
+          </div>
+        </div>
+        <div class="paper-grid" id="paperGrid"></div>
+      </section>
+
+      <!-- 做题 -->
+      <section class="page" id="page-quiz">
+        <div class="quiz-wrap">
+          <aside class="qnav">
+            <div class="qh" id="qnavTitle">本卷进度</div>
+            <div class="qgrid" id="qGrid"></div>
+            <div class="qlegend">
+              <div>✅ 已答对 <b id="lgOk">0</b></div><div>❌ 答错 <b id="lgBad">0</b></div><div>⬜ 未答 <b id="lgNone">0</b></div>
+            </div>
+            <div id="qActions"></div>
+          </aside>
+          <div class="qmain" id="qMain"></div>
+        </div>
+      </section>
+
+      <!-- 随机刷题 -->
+      <section class="page" id="page-random">
+        <div class="page-title">随机刷题</div>
+        <div class="page-sub">只抽你做过的题 · 每次 15 道 · 编程 ≤2、简答类 ≤3</div>
+        <div class="panel" id="randomIntro">
+          <div class="random-hero">
+            <div class="big" id="randomPool">—</div>
+            <div class="lbl">道题在抽题池中（已作答）</div>
+          </div>
+          <button class="btn primary bigbtn" id="btnStartRandom">开始一组（15 道）</button>
+        </div>
+      </section>
+
+      <!-- 错题本 -->
+      <section class="page" id="page-wrong">
+        <div class="page-title">错题本 · 待攻克</div>
+        <div class="page-sub">连对 3 次毕业进入已过关 · 已过关再错一次自动回炉</div>
+        <div class="tabs">
+          <div class="tab on" data-kind="active">待攻克</div>
+          <div class="tab" data-kind="passed">已过关</div>
+        </div>
+        <div class="panel" id="wrongList"></div>
+      </section>
+
+      <!-- 统计 -->
+      <section class="page" id="page-stats">
+        <div class="page-title">统计面板</div>
+        <div class="page-sub">作答趋势 · 薄弱知识点</div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="panel">
+          <h4>薄弱知识点 Top 8（按错误率）</h4>
+          <div id="tagList"></div>
+        </div>
+        <div class="panel">
+          <h4>近 7 天作答量</h4>
+          <div class="bars7" id="dayBars"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- 导入新卷 -->
+<div class="mask" id="impMask">
+  <div class="dialog">
+    <div class="dlg-head">
+      <b>导入新卷</b>
+      <span class="spacer"></span>
+      <button class="chipbtn" id="impClose">✕</button>
+    </div>
+
+    <div class="dlg-body">
+      <div class="imp-flow">
+        <span class="imp-step">① 复制出题提示词 → 丢给 AI</span>
+        <span class="imp-arr">›</span>
+        <span class="imp-step">② 把 AI 回复整段贴进来</span>
+        <span class="imp-arr">›</span>
+        <span class="imp-step">③ 导入</span>
+      </div>
+
+      <textarea id="impText" class="imp-area" spellcheck="false"
+        placeholder="把 AI 输出的整段内容粘贴到这里 —— 带 ```yaml 代码块也没关系，会自动提取。&#10;也可以直接把 .yaml 文件拖进来。"></textarea>
+
+      <div class="imp-tools">
+        <button class="chipbtn" id="impFile">📂 读取文件</button>
+        <button class="chipbtn" id="impPaste">📋 从剪贴板粘贴</button>
+        <input type="file" id="impFileInput" accept=".yaml,.yml,.md,.txt" hidden>
+        <span class="spacer"></span>
+        <span class="imp-stat" id="impStat"></span>
+      </div>
+
+      <div class="imp-result" id="impResult" style="display:none"></div>
+    </div>
+
+    <div class="dlg-foot">
+      <span class="imp-note">导入前会校验格式，不合规不会写进题库</span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="impCancel">取消</button>
+      <button class="btn primary" id="impGo">导入</button>
+    </div>
+  </div>
+</div>
+
+<script src="/monaco/vs/loader.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
